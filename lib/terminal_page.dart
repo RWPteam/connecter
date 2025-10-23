@@ -1,4 +1,5 @@
 // terminal_page.dart
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:xterm/xterm.dart';
@@ -27,11 +28,19 @@ class _TerminalPageState extends State<TerminalPage> {
   SSHSession? _session;
   bool _isConnected = false;
   String _status = '连接中...';
+  StreamSubscription<List<int>>? _stdoutSubscription;
+  StreamSubscription<List<int>>? _stderrSubscription;
+  final GlobalKey<TerminalViewState> _terminalViewKey = GlobalKey();
 
   @override
   void initState() {
     super.initState();
-    terminal = Terminal(maxLines: 10000,);
+    terminal = Terminal(
+      maxLines: 10000,
+    );
+    
+    // 设置输入处理器 - 在连接前就设置好
+    _setupTerminalInput();
     
     WidgetsBinding.instance.addPostFrameCallback((_){
       _connectToHost();
@@ -42,10 +51,10 @@ class _TerminalPageState extends State<TerminalPage> {
     // 设置输入处理器
     terminal.onOutput = (data) {
       // 发送用户输入到 SSH 会话
-      _session?.write(utf8.encode(data));
+      if (_session != null && _isConnected) {
+        _session!.write(utf8.encode(data));
+      }
     };
-    
-    // 设置键盘输入处理器
   }
 
   Future<void> _connectToHost() async {
@@ -67,13 +76,17 @@ class _TerminalPageState extends State<TerminalPage> {
       });
 
       // 监听终端输出
-      _session!.stdout.listen((data) {
-        terminal.write(utf8.decode(data));
+      _stdoutSubscription = _session!.stdout.listen((data) {
+        if (mounted) {
+          terminal.write(utf8.decode(data));
+        }
       });
 
       // 监听错误
-      _session!.stderr.listen((data) {
-        terminal.write('错误: ${utf8.decode(data)}');
+      _stderrSubscription = _session!.stderr.listen((data) {
+        if (mounted) {
+          terminal.write('错误: ${utf8.decode(data)}');
+        }
       });
       
       // 监听会话关闭
@@ -86,7 +99,7 @@ class _TerminalPageState extends State<TerminalPage> {
           terminal.write('\r\n连接已断开\r\n');
         }
       });
-      _setupTerminalInput();
+
       terminal.write('连接到 ${widget.connection.host} 成功\r\n');
 
     } catch (e) {
@@ -101,18 +114,20 @@ class _TerminalPageState extends State<TerminalPage> {
   }
 
   void _clearTerminal() {
-    // 使用 ANSI 转义序列清屏
-    terminal.write('\x1B[2J\x1B[0;0H');
+    // 使用 ANSI 转义序列清屏并重置光标
+    terminal.write('\x1B[2J\x1B[1;1H');
+    // 发送回车触发新的提示符显示
+    _sendText('\r');
   }
 
   void _sendText(String text) {
-    if (_session != null) {
+    if (_session != null && _isConnected) {
       _session!.write(utf8.encode(text));
     }
   }
 
   void _sendEnter() {
-    _sendText('\r');
+    _sendText('\r\n');
   }
 
   void _sendBackspace() {
@@ -131,15 +146,27 @@ class _TerminalPageState extends State<TerminalPage> {
     _sendText('\t');
   }
 
+
+  void _closeKeyboard() {
+    // 关闭键盘输入连接
+    _terminalViewKey.currentState?.closeKeyboard();
+  }
+
   @override
   void dispose() {
+    // 先关闭键盘输入
+    _closeKeyboard();
+    
+    // 然后取消订阅和关闭连接
+    _stdoutSubscription?.cancel();
+    _stderrSubscription?.cancel();
     _session?.close();
     _sshClient?.close();
+    
     super.dispose();
   }
 
-  
-@override
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
@@ -235,25 +262,17 @@ class _TerminalPageState extends State<TerminalPage> {
           ),
           // 终端
           Expanded(
-            child: FutureBuilder(
-              future: Future.delayed(const Duration(milliseconds: 500)),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState != ConnectionState.done) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-              
-                return Focus(
-                  autofocus: true,
-                  child: TerminalView(
-                    terminal,
-                    backgroundOpacity: 1.0,
-                    textStyle: const TerminalStyle(
-                      fontSize: 14,
-                      fontFamily: 'Monospace',
-                    ),
-                  ),
-                );
-              },
+            child: TerminalView(
+              terminal,
+              key: _terminalViewKey,
+              backgroundOpacity: 1.0,
+              textStyle: const TerminalStyle(
+                fontSize: 14,
+                fontFamily: 'Monospace',
+              ),
+              autoResize: true,
+              readOnly: false, // 确保不是只读模式
+              hardwareKeyboardOnly: false, // 允许软键盘
             ),
           ),
           // 虚拟键盘（可选，用于测试）
