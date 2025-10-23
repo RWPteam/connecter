@@ -208,7 +208,7 @@ class _QuickConnectDialogState extends State<QuickConnectDialog> {
                 children: [
                   Expanded(
                     child: DropdownButtonFormField<Credential>(
-                      value: _selectedCredential,
+                      initialValue: _selectedCredential,
                       decoration: const InputDecoration(
                         labelText: '认证凭证',
                       ),
@@ -243,7 +243,7 @@ class _QuickConnectDialogState extends State<QuickConnectDialog> {
               
               // 连接类型 - 修复默认值问题
               DropdownButtonFormField<ConnectionType>(
-                value: _selectedType,
+                initialValue: _selectedType,
                 decoration: const InputDecoration(
                   labelText: '连接类型',
                 ),
