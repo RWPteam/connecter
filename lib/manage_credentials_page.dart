@@ -1,4 +1,5 @@
-// manage_credentials_page.dart
+// ignore_for_file: use_build_context_synchronously
+
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
@@ -327,7 +328,7 @@ class _CredentialDialogState extends State<CredentialDialog> {
               TextFormField(
                 controller: _nameController,
                 decoration: const InputDecoration(
-                  labelText: '凭证名称 *',
+                  labelText: '凭证名称',
                   hintText: '输入凭证的显示名称',
                 ),
                 textInputAction: TextInputAction.next,
@@ -344,7 +345,7 @@ class _CredentialDialogState extends State<CredentialDialog> {
               TextFormField(
                 controller: _usernameController,
                 decoration: const InputDecoration(
-                  labelText: '用户名 *',
+                  labelText: '用户名',
                   hintText: '输入登录用户名',
                 ),
                 textInputAction: TextInputAction.next,
@@ -361,7 +362,7 @@ class _CredentialDialogState extends State<CredentialDialog> {
               DropdownButtonFormField<AuthType>(
                 initialValue: _authType,
                 decoration: const InputDecoration(
-                  labelText: '认证方式 *',
+                  labelText: '认证方式',
                 ),
                 items: const [
                   DropdownMenuItem(
@@ -394,7 +395,7 @@ class _CredentialDialogState extends State<CredentialDialog> {
                 TextFormField(
                   controller: _passwordController,
                   decoration: InputDecoration(
-                    labelText: '密码 *',
+                    labelText: '密码',
                     hintText: '输入登录密码',
                     suffixIcon: IconButton(
                       icon: Icon(
@@ -424,7 +425,7 @@ class _CredentialDialogState extends State<CredentialDialog> {
                     TextFormField(
                       controller: _privateKeyController,
                       decoration: const InputDecoration(
-                        labelText: '私钥内容 *',
+                        labelText: '私钥内容',
                         hintText: '粘贴私钥内容或从文件读取',
                       ),
                       maxLines: 6,

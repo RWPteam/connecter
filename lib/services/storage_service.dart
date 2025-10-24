@@ -1,5 +1,4 @@
-// services/storage_service.dart
-import 'dart:convert'; // 添加这个导入
+import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/connection_model.dart';
 import '../models/credential_model.dart';
@@ -12,12 +11,11 @@ class StorageService {
     final prefs = await SharedPreferences.getInstance();
     final connections = await getConnections();
     
-    // 移除同名的旧连接
     connections.removeWhere((c) => c.id == connection.id);
     connections.add(connection);
     
     final jsonList = connections.map((c) => c.toJson()).toList();
-    await prefs.setString(_connectionsKey, json.encode(jsonList)); // 使用 json.encode
+    await prefs.setString(_connectionsKey, json.encode(jsonList)); 
   }
 
   Future<List<ConnectionInfo>> getConnections() async {
@@ -27,7 +25,7 @@ class StorageService {
     if (jsonString == null) return [];
     
     try {
-      final List<dynamic> jsonList = json.decode(jsonString); // 使用 json.decode
+      final List<dynamic> jsonList = json.decode(jsonString); 
       return jsonList.map((json) => ConnectionInfo.fromJson(json)).toList();
     } catch (e) {
       return [];
@@ -40,19 +38,19 @@ class StorageService {
     connections.removeWhere((c) => c.id == id);
     
     final jsonList = connections.map((c) => c.toJson()).toList();
-    await prefs.setString(_connectionsKey, json.encode(jsonList)); // 使用 json.encode
+    await prefs.setString(_connectionsKey, json.encode(jsonList)); 
   }
 
   Future<void> saveCredential(Credential credential) async {
     final prefs = await SharedPreferences.getInstance();
     final credentials = await getCredentials();
     
-    // 移除同名的旧凭证
+   
     credentials.removeWhere((c) => c.id == credential.id);
     credentials.add(credential);
     
     final jsonList = credentials.map((c) => c.toJson()).toList();
-    await prefs.setString(_credentialsKey, json.encode(jsonList)); // 使用 json.encode
+    await prefs.setString(_credentialsKey, json.encode(jsonList)); 
   }
 
   Future<List<Credential>> getCredentials() async {
@@ -62,7 +60,7 @@ class StorageService {
     if (jsonString == null) return [];
     
     try {
-      final List<dynamic> jsonList = json.decode(jsonString); // 使用 json.decode
+      final List<dynamic> jsonList = json.decode(jsonString);
       return jsonList.map((json) => Credential.fromJson(json)).toList();
     } catch (e) {
       return [];
@@ -75,6 +73,6 @@ class StorageService {
     credentials.removeWhere((c) => c.id == id);
     
     final jsonList = credentials.map((c) => c.toJson()).toList();
-    await prefs.setString(_credentialsKey, json.encode(jsonList)); // 使用 json.encode
+    await prefs.setString(_credentialsKey, json.encode(jsonList)); 
   }
 }

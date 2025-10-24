@@ -1,4 +1,3 @@
-// models/connection_model.dart
 class ConnectionInfo {
   String id;
   String name;
@@ -36,10 +35,10 @@ class ConnectionInfo {
     final typeString = json['type'] as String;
     type = ConnectionType.values.firstWhere(
       (e) => e.toString() == typeString,
-      orElse: () => ConnectionType.ssh, // 默认 SSH
+      orElse: () => ConnectionType.ssh, 
     );
   } catch (e) {
-    type = ConnectionType.ssh; // 出错时默认 SSH
+    type = ConnectionType.ssh;
   }
     return ConnectionInfo(
       id: json['id'],

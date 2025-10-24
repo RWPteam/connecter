@@ -1,4 +1,3 @@
-// quick_connect_dialog.dart
 import 'package:flutter/material.dart';
 import 'package:t_samuioto_ssh/manage_credentials_page.dart';
 import 'package:uuid/uuid.dart';
@@ -8,9 +7,9 @@ import 'services/storage_service.dart';
 import 'services/ssh_service.dart';
 import 'terminal_page.dart';
 
-// quick_connect_dialog.dart
+
 class QuickConnectDialog extends StatefulWidget {
-  final ConnectionInfo? connection; // 添加可选参数用于编辑模式
+  final ConnectionInfo? connection; 
 
   const QuickConnectDialog({super.key, this.connection});
 
@@ -27,7 +26,7 @@ class _QuickConnectDialogState extends State<QuickConnectDialog> {
 
   List<Credential> _credentials = [];
   Credential? _selectedCredential;
-  ConnectionType _selectedType = ConnectionType.ssh; // 默认改为 SSH
+  ConnectionType _selectedType = ConnectionType.ssh;
   bool _rememberConnection = false;
   bool _isConnecting = false;
   bool _isEditing = false;
@@ -37,7 +36,6 @@ class _QuickConnectDialogState extends State<QuickConnectDialog> {
     super.initState();
     _isEditing = widget.connection != null;
     
-    // 如果是编辑模式，初始化表单数据
     if (_isEditing) {
       _hostController.text = widget.connection!.host;
       _portController.text = widget.connection!.port.toString();
@@ -54,7 +52,6 @@ class _QuickConnectDialogState extends State<QuickConnectDialog> {
       _credentials = credentials;
     });
     
-    // 如果是编辑模式，设置选中的凭证
     if (_isEditing && _credentials.isNotEmpty) {
       final connectionCredentialId = widget.connection!.credentialId;
       final credential = _credentials.firstWhere(
@@ -81,7 +78,6 @@ class _QuickConnectDialogState extends State<QuickConnectDialog> {
     });
 
     try {
-      // 使用现有ID（编辑模式）或生成新ID（新建模式）
       final connection = ConnectionInfo(
         id: widget.connection?.id ?? const Uuid().v4(),
         name: '${_hostController.text}:${_portController.text}',
@@ -92,15 +88,12 @@ class _QuickConnectDialogState extends State<QuickConnectDialog> {
         remember: _rememberConnection,
       );
 
-      // 测试连接
       await _sshService.connect(connection, _selectedCredential!);
 
-      // 保存连接（如果需要）
       if (_rememberConnection || _isEditing) {
         await _storageService.saveConnection(connection);
       }
 
-      // 关闭对话框并跳转到终端页面
       if (mounted) {
         Navigator.of(context).pop();
         Navigator.of(context).push(
@@ -160,7 +153,7 @@ class _QuickConnectDialogState extends State<QuickConnectDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text(_isEditing ? '编辑连接' : '快速连接'), // 根据模式显示不同标题
+      title: Text(_isEditing ? '编辑连接' : '快速连接'), 
       content: SingleChildScrollView(
         child: Form(
           key: _formKey,
@@ -261,12 +254,12 @@ class _QuickConnectDialogState extends State<QuickConnectDialog> {
               ),
               const SizedBox(height: 16),
               
-              // 记住连接 - 编辑模式下默认选中
+              
               CheckboxListTile(
                 title: const Text('记住该连接'),
-                value: _isEditing ? true : _rememberConnection, // 编辑模式下强制记住
+                value: _isEditing ? true : _rememberConnection, 
                 onChanged: _isEditing 
-                    ? null // 编辑模式下禁用更改
+                    ? null 
                     : (value) {
                         setState(() {
                           _rememberConnection = value!;
@@ -275,11 +268,6 @@ class _QuickConnectDialogState extends State<QuickConnectDialog> {
                 controlAffinity: ListTileControlAffinity.leading,
               ),
               
-              if (_isEditing)
-                const Text(
-                  '编辑模式下连接会自动保存',
-                  style: TextStyle(color: Colors.grey, fontSize: 12),
-                ),
             ],
           ),
         ),

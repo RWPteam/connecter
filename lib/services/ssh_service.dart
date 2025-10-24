@@ -1,4 +1,3 @@
-// services/ssh_service.dart
 import 'package:dartssh2/dartssh2.dart';
 import '../models/connection_model.dart';
 import '../models/credential_model.dart';
@@ -20,12 +19,10 @@ class SshService {
           onPasswordRequest: () => credential.password!,
         );
       } else {
-        // 处理带密码的私钥
         final privateKey = credential.privateKey!;
         final passPhrase = credential.passphrase;
         
         try {
-          // 尝试解析私钥
           final keyPairs = SSHKeyPair.fromPem(privateKey,passPhrase);
           if (keyPairs.isEmpty) {
             throw Exception('无法解析私钥');
@@ -37,7 +34,6 @@ class SshService {
             identities: keyPairs,
           );
         } catch (e) {
-          // 如果解析失败，可能是需要密码的密钥格式
           throw Exception('私钥解析失败，请检查私钥格式和密码: $e');
         }
       }

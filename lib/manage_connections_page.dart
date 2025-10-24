@@ -1,4 +1,3 @@
-// manage_connections_page.dart
 import 'package:flutter/material.dart';
 // ignore: unused_import
 import 'package:uuid/uuid.dart';
@@ -53,9 +52,10 @@ void _deleteConnection(ConnectionInfo connection) {
             await _storageService.deleteConnection(connection.id);
             if (mounted) {
               setState(() {
-                _loadConnections(); // 立即重新加载
+                _loadConnections(); 
               });
             }
+            // ignore: use_build_context_synchronously
             Navigator.of(context).pop();
           },
           child: const Text('删除'),

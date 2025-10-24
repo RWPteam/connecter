@@ -6,7 +6,7 @@ class Credential {
   AuthType authType;
   String? password;
   String? privateKey;
-  String? passphrase; // 添加passphrase支持
+  String? passphrase; 
 
   Credential({
     required this.id,
@@ -18,7 +18,6 @@ class Credential {
     this.passphrase,
   });
 
-  // 添加相等性比较
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
