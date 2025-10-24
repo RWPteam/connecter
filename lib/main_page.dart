@@ -444,7 +444,8 @@ class _MainPageState extends State<MainPage> {
           showAboutDialog(
             context: context,
             applicationName: 'connecter',
-            applicationVersion: 'alpha0.0.1',
+            applicationVersion: '1.0 Beta',
+            
           );
         },
         title: '关于',
