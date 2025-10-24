@@ -27,7 +27,7 @@ class MyApp extends StatelessWidget {
         ),
         useMaterial3: true,
       ),
-      themeMode: ThemeMode.system, // 跟随系统深色模式
+      themeMode: ThemeMode.system,
       home: const MainPage(),
       debugShowCheckedModeBanner: false,
     );
