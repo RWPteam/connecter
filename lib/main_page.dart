@@ -220,19 +220,19 @@ class _MainPageState extends State<MainPage> {
     return ListTile(
       leading: Icon(
         _getConnectionIcon(connection.type),
-        color: isConnectingThis ? Colors.blue : Colors.grey,
+        color: isConnectingThis ? Colors.grey : Colors.grey,
       ),
       title: Text(
         connection.name,
         style: TextStyle(
           fontWeight: FontWeight.bold,
-          color: isConnectingThis ? Colors.blue : null,
+          color: isConnectingThis ? Colors.grey : null,
         ),
       ),
       subtitle: Text(
         '${connection.host}:${connection.port} - ${connection.type.displayName}',
         style: TextStyle(
-          color: isConnectingThis ? Colors.blue : Colors.grey,
+          color: isConnectingThis ? Colors.grey : Colors.grey,
         ),
       ),
       trailing: Container(
