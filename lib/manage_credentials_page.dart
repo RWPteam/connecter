@@ -283,7 +283,6 @@ class _CredentialDialogState extends State<CredentialDialog> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(_isEditing ? '凭证已更新' : '凭证已创建'),
-            backgroundColor: Colors.green,
           ),
         );
       }

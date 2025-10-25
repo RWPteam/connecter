@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:t_samuioto_ssh/terminal_page.dart';
 // ignore: unused_import
 import 'package:uuid/uuid.dart';
 import 'models/connection_model.dart';
 import 'services/storage_service.dart';
 import 'quick_connect_dialog.dart';
+import 'services/ssh_service.dart';
+//import 'services/storage_service.dart';
 
 class ManageConnectionsPage extends StatefulWidget {
   const ManageConnectionsPage({super.key});
@@ -32,7 +35,7 @@ class _ManageConnectionsPageState extends State<ManageConnectionsPage> {
 void _editConnection(ConnectionInfo connection) {
   showDialog(
     context: context,
-    builder: (context) => QuickConnectDialog(connection: connection), // 传入连接进行编辑
+    builder: (context) => QuickConnectDialog(connection: connection), 
   ).then((_) => _loadConnections());
 }
 
@@ -41,7 +44,7 @@ void _deleteConnection(ConnectionInfo connection) {
     context: context,
     builder: (context) => AlertDialog(
       title: const Text('删除连接'),
-      content: Text('确定要删除连接 "${connection.name}" 吗？'),
+      content: Text('要删除连接 "${connection.name}" 吗？'),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
@@ -65,9 +68,56 @@ void _deleteConnection(ConnectionInfo connection) {
   );
 }
 
-  void _connectTo(ConnectionInfo connection) {
-    // 应该暂时不需要了
+void _connectTo(ConnectionInfo connection) async {
+  try {
+    final storageService = StorageService();
+    final sshService = SshService();
+    
+    // 获取对应的凭证
+    final credentials = await storageService.getCredentials();
+    final credential = credentials.firstWhere(
+      (c) => c.id == connection.credentialId,
+      orElse: () => throw Exception('找不到认证凭证'),
+    );
+
+    // 显示连接中状态
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('正在连接...')),
+      );
+    }
+
+    await sshService.connect(connection, credential);
+
+    if (mounted) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => TerminalPage(
+            connection: connection,
+            credential: credential,
+          ),
+        ),
+      );
+    }
+
+  } catch (e) {
+    if (mounted) {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('连接失败'),
+          content: Text(e.toString()),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('确定'),
+            ),
+          ],
+        ),
+      );
+    }
   }
+}
 
   @override
   Widget build(BuildContext context) {

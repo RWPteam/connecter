@@ -64,7 +64,7 @@ class _QuickConnectDialogState extends State<QuickConnectDialog> {
     }
   }
 
-  Future<void> _connect() async {
+  Future<void> _connectToServer() async {
     if (!_formKey.currentState!.validate()) return;
     if (_selectedCredential == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -118,6 +118,56 @@ class _QuickConnectDialogState extends State<QuickConnectDialog> {
     }
   }
 
+  // 新增：仅更新连接信息而不连接
+  Future<void> _updateConnection() async {
+    if (!_formKey.currentState!.validate()) return;
+    if (_selectedCredential == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('请选择认证凭证')),
+      );
+      return;
+    }
+
+    setState(() {
+      _isConnecting = true;
+    });
+
+    try {
+      final connection = ConnectionInfo(
+        id: widget.connection!.id, // 使用原有的ID
+        name: '${_hostController.text}:${_portController.text}',
+        host: _hostController.text,
+        port: int.parse(_portController.text),
+        credentialId: _selectedCredential!.id,
+        type: _selectedType,
+        remember: true, // 编辑模式下总是记住连接
+      );
+
+      // 仅保存连接信息，不进行SSH连接
+      await _storageService.saveConnection(connection);
+
+      if (mounted) {
+        Navigator.of(context).pop();
+        // 不跳转到终端页面
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('连接信息已更新')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('更新失败: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isConnecting = false;
+        });
+      }
+    }
+  }
+
   void _showConnectionError(String error) {
     showDialog(
       context: context,
@@ -132,7 +182,7 @@ class _QuickConnectDialogState extends State<QuickConnectDialog> {
           TextButton(
             onPressed: () {
               Navigator.of(context).pop();
-              _connect();
+              _connectToServer();
             },
             child: const Text('重试'),
           ),
@@ -278,7 +328,13 @@ class _QuickConnectDialogState extends State<QuickConnectDialog> {
           child: const Text('取消'),
         ),
         ElevatedButton(
-          onPressed: _isConnecting ? null : _connect,
+          onPressed: _isConnecting ? null : () {
+            if (_isEditing) {
+              _updateConnection();
+            } else {
+              _connectToServer(); 
+            }
+          },
           child: _isConnecting
               ? const SizedBox(
                   width: 16,
