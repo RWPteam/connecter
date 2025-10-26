@@ -7,6 +7,8 @@ class StorageService {
   static const String _connectionsKey = 'saved_connections';
   static const String _credentialsKey = 'saved_credentials';
   static const String _recentConnectionsKey = 'recent_connections';
+  static const int _maxRecentConnections = 12;
+  static const int _maxPinnedConnections = 12;
 
   Future<List<ConnectionInfo>> getRecentConnections() async {
     final prefs = await SharedPreferences.getInstance();
@@ -16,11 +18,12 @@ class StorageService {
     try {
       final List<dynamic> jsonList = json.decode(jsonString);
       final connections = jsonList.map((json) => ConnectionInfo.fromJson(json)).toList();
-      final uniqueConnections = <String, ConnectionInfo> {};
-      for (final connection in connections) {
-        uniqueConnections[connection.id] = connection;
-      }
-      return uniqueConnections.values.take(5).toList();
+      connections.sort((a,b){
+        if (a.isPinned && !b.isPinned) return -1;
+        if (!a.isPinned && b.isPinned) return 1;
+        return b.lastUsed.compareTo(a.lastUsed);
+      });
+      return connections;
     } catch (e) {
       return [];
     }
@@ -28,22 +31,51 @@ class StorageService {
 
   Future<void> addRecentConnection(ConnectionInfo connection) async {
     final prefs = await SharedPreferences.getInstance();
-    final recentConnections = await getRecentConnections();
+    List<ConnectionInfo> recentConnections = await getRecentConnections();
+    final updatedConnnection = ConnectionInfo(id: connection.id, name: connection.name, host: connection.host, port: connection.port, credentialId: connection.credentialId, type: connection.type, remember: connection.remember, isPinned: connection.isPinned,lastUsed: DateTime.now());
     recentConnections.removeWhere((c) => c.id == connection.id);
-    recentConnections.insert(0, connection);
-
-    final limitConnections = recentConnections.take(5).toList();
-
-    final jsonList = limitConnections.map((c) => c.toJson()).toList();
+    if (connection.isPinned) {
+      recentConnections.insert(0, updatedConnnection);
+    } else {
+      final pinnedCount = recentConnections.where((c) => c.isPinned).length;
+      recentConnections.insert(pinnedCount, updatedConnnection);
+    }
+    if (recentConnections.length > _maxRecentConnections) {
+      recentConnections = recentConnections.take(_maxRecentConnections).toList();
+    }
+    final jsonList = recentConnections.map((c) => c.toJson()).toList();
     await prefs.setString(_recentConnectionsKey, json.encode(jsonList));
+  }
+
+  Future<void> togglePinConnection(String id) async {
+    final prefs = await SharedPreferences.getInstance();
+    List<ConnectionInfo> recentConnections = await getRecentConnections();
+
+    final connectionIndex = recentConnections.indexWhere((c) => c.id == id);
+    if (connectionIndex != -1) {
+      final connection = recentConnections[connectionIndex];
+      final pinnedCount = recentConnections.where((c) => c.isPinned).length;
+
+      if (!connection.isPinned && pinnedCount >= _maxPinnedConnections) {
+        throw Exception('置顶数量达到上限');
+      }
+
+    recentConnections[connectionIndex] = ConnectionInfo(id: connection.id, name: connection.name, host: connection.host, port: connection.port, credentialId: connection.credentialId, type: connection.type, remember: connection.remember, isPinned: !connection.isPinned,lastUsed: connection.lastUsed);
+    recentConnections.sort((a,b) {
+        if (a.isPinned && !b.isPinned) return -1;
+        if (!a.isPinned && b.isPinned) return 1;
+        return b.lastUsed.compareTo(a.lastUsed);
+      });
+
+      final jsonList = recentConnections.map((c) => c.toJson()).toList();
+      await prefs.setString(_recentConnectionsKey, json.encode(jsonList));
+    }
   }
 
   Future<void> deleteRecentConnection(String id) async {
     final prefs = await SharedPreferences.getInstance();
     final recentConnections = await getRecentConnections();
-
     recentConnections.removeWhere((c) => c.id == id);
-
     final jsonList = recentConnections.map((c) => c.toJson()).toList();
     await prefs.setString(_recentConnectionsKey, json.encode(jsonList));
   }

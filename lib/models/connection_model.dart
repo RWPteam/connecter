@@ -6,6 +6,8 @@ class ConnectionInfo {
   String credentialId;
   ConnectionType type;
   bool remember;
+  bool isPinned;
+  DateTime lastUsed;
 
   ConnectionInfo({
     required this.id,
@@ -15,7 +17,9 @@ class ConnectionInfo {
     required this.credentialId,
     required this.type,
     required this.remember,
-  });
+    this.isPinned = false,
+    DateTime? lastUsed,
+  }) : lastUsed = lastUsed ?? DateTime.now();
 
   Map<String, dynamic> toJson() {
     return {
@@ -26,6 +30,8 @@ class ConnectionInfo {
       'credentialId': credentialId,
       'type': type.toString(),
       'remember': remember,
+      'isPinned': isPinned,
+      'lastUsed': lastUsed.toIso8601String(),
     };
   }
 
@@ -48,6 +54,10 @@ class ConnectionInfo {
       credentialId: json['credentialId'],
       type: type,
       remember: json['remember'],
+      isPinned: json['isPinned'] ?? false,
+      lastUsed: json['lastUsed'] != null
+        ? DateTime.parse(json['lastUsed'])
+        : DateTime.now(),
     );
   }
 }

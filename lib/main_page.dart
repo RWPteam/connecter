@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import 'manage_connections_page.dart';
 import 'manage_credentials_page.dart';
@@ -8,7 +7,6 @@ import 'services/storage_service.dart';
 import 'services/ssh_service.dart';
 import 'terminal_page.dart';
 
-
 class MainPage extends StatefulWidget {
   const MainPage({super.key});
 
@@ -17,13 +15,12 @@ class MainPage extends StatefulWidget {
 }
 
 class _MainPageState extends State<MainPage> {
-  //List<ConnectionInfo> _connections = []; 
   List<ConnectionInfo> _recentConnections = [];
   bool _isLoading = true; 
   final StorageService _storageService = StorageService();
   final SshService _sshService = SshService();
   bool _isConnecting = false;
-
+  ConnectionInfo? _connectingConnection;
 
   @override
   void initState() {
@@ -33,9 +30,9 @@ class _MainPageState extends State<MainPage> {
 
   Future<void> _loadRecentConnections() async {
     try {
-      final RecentConnections = await _storageService.getRecentConnections();
+      final recentConnections = await _storageService.getRecentConnections();
       setState(() {
-        _recentConnections = RecentConnections;
+        _recentConnections = recentConnections;
         _isLoading = false;
       });
     } catch (e) {
@@ -57,40 +54,41 @@ class _MainPageState extends State<MainPage> {
       _loadRecentConnections();
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('加载最近连接失败：$e'),backgroundColor: Colors.red),
+        SnackBar(
+          content: Text('保存到最近连接失败：$e'),
+          backgroundColor: Colors.red
+        ),
       );
     }
   }
 
-  Future<void> _delRecentConnection(ConnectionInfo connection) async {
+  Future<void> _deleteRecentConnection(ConnectionInfo connection) async {
     try {
       await _storageService.deleteRecentConnection(connection.id);
       _loadRecentConnections();
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('删除最近连接失败：$e'),backgroundColor: Colors.red,),
+        SnackBar(
+          content: Text('删除最近连接失败：$e'),
+          backgroundColor: Colors.red,
+        ),
       );
     }
   }
-//  Future<void> _loadConnections() async {
-//    try {
-//      final connections = await _storageService.getConnections();
-//      setState(() {
-//        _connections = connections;
-//        _isLoading = false;
-//      });
-//    } catch (e) {
-//      setState(() {
-//        _isLoading = false;
-//      });
-//        ScaffoldMessenger.of(context).showSnackBar(
-//          SnackBar(
-//            content: Text('读取最近连接失败: $e'),
-//            backgroundColor: Colors.red,
-//          ),
-//        );
-//    }
-//  }
+
+  Future<void> _togglePinConnection(ConnectionInfo connection) async {
+    try {
+      await _storageService.togglePinConnection(connection.id);
+      _loadRecentConnections();
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString()),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -103,8 +101,7 @@ class _MainPageState extends State<MainPage> {
       ),
       body: LayoutBuilder(
         builder: (context, constraints) {
-          
-          final bool showRecentConnections = constraints.maxWidth >= 800 ;
+          final bool showRecentConnections = constraints.maxWidth >= 800;
           final bool showButtonSubtitle = constraints.maxHeight >= 500;
           
           return _buildContent(
@@ -166,7 +163,6 @@ class _MainPageState extends State<MainPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                
                   Padding(
                     padding: const EdgeInsets.only(bottom: 24.0),
                     child: Text(
@@ -176,7 +172,6 @@ class _MainPageState extends State<MainPage> {
                       ),
                     ),
                   ),
-               
                   Expanded(
                     child: SingleChildScrollView(
                       child: Column(
@@ -218,16 +213,11 @@ class _MainPageState extends State<MainPage> {
                                   '无最近连接',
                                   style: TextStyle(
                                     color: Colors.grey,
-                                    
                                     fontSize: 16,
                                   ),
-                                
                                 ),
-                                
                               ),
-                              
                             )
-                            
                           : Expanded(
                               child: ListView.builder(
                                 itemCount: _recentConnections.length,
@@ -257,44 +247,71 @@ class _MainPageState extends State<MainPage> {
     }
   }
 
-  ConnectionInfo? _connectingConnection;
   Widget _buildConnectionTile(BuildContext context, ConnectionInfo connection) {
     final isConnectingThis = _isConnecting && _connectingConnection?.id == connection.id;
+    
     return ListTile(
-      leading: Icon(
-        _getConnectionIcon(connection.type),
-        color: isConnectingThis ? Colors.grey : Colors.grey,
+      leading: Stack(
+        children: [
+          Icon(
+            connection.isPinned ? Icons.vertical_align_top : _getConnectionIcon(connection.type),
+            color: Colors.grey,
+          ),
+        ],
       ),
-      title: Text(
-        connection.name,
-        style: TextStyle(
-          fontWeight: FontWeight.bold,
-          color: isConnectingThis ? Colors.grey : null,
-        ),
-        
+      title: Row(
+        children: [
+          Expanded(
+            child: Text(
+              connection.name,
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: isConnectingThis ? Colors.grey : null,
+              ),
+            ),
+          ),
+        ],
       ),
-
       subtitle: Text(
         '${connection.host}:${connection.port} - ${connection.type.displayName}',
         style: TextStyle(
           color: isConnectingThis ? Colors.grey : Colors.grey,
         ),
       ),
-      trailing: Container(
-        constraints: const BoxConstraints(
-          maxWidth: 40,
-        ),
-        child: IconButton(
-          icon: const Icon(
-            Icons.play_arrow,
-            color: Colors.grey,
+      trailing: PopupMenuButton<String>(
+        icon: const Icon(Icons.more_vert, color: Colors.grey),
+        onSelected: (value) {
+          _handleMenuAction(value, connection);
+        },
+        itemBuilder: (BuildContext context) => [
+          const PopupMenuItem<String>(
+            value: 'connect',
+            child: Row(
+              children: [
+                SizedBox(width: 8),
+                Text('连接'),
+              ],
+            ),
           ),
-          iconSize: 20,
-          padding: EdgeInsets.zero,
-          onPressed: () {
-            _connectToServer(connection);
-          },
+        PopupMenuItem<String>(
+          value: 'pin',
+          child: Row(
+          children: [
+            const SizedBox(width: 8),
+            Text(connection.isPinned ? '取消置顶' : '置顶'),
+            ],
+          ),
         ),
+          const PopupMenuItem<String>(
+            value: 'delete',
+            child: Row(
+              children: [
+                SizedBox(width: 8),
+                Text('删除', style: TextStyle(color: Colors.red)),
+              ],
+            ),
+          ),
+        ],
       ),
       contentPadding: const EdgeInsets.symmetric(
         horizontal: 16,
@@ -303,9 +320,46 @@ class _MainPageState extends State<MainPage> {
       onTap: () {
         _connectToServer(connection);
       },
-      onLongPress: () {
-        _showDelRecentConnectionDialog(connection);
-      },
+    );
+  }
+
+  void _handleMenuAction(String action, ConnectionInfo connection) {
+    switch (action) {
+      case 'connect':
+        _connectToServer(connection);
+        break;
+      case 'pin':
+        _togglePinConnection(connection);
+        break;
+      case 'delete':
+        _showDeleteDialog(connection);
+        break;
+    }
+  }
+
+  void _showDeleteDialog(ConnectionInfo connection) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('删除连接'),
+        content: Text('确定要从最近连接中删除 "${connection.name}" 吗？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _deleteRecentConnection(connection);
+            },
+            child: const Text(
+              '删除',
+              style: TextStyle(color: Colors.red),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -315,23 +369,9 @@ class _MainPageState extends State<MainPage> {
         return Icons.terminal;
       case ConnectionType.sftp:
         return Icons.folder;
-      }
+    }
   }
 
-  void _showDelRecentConnectionDialog(ConnectionInfo connection) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('要从最近连接中删除 "$connection.name" 吗？'),
-        duration: const Duration(seconds: 5),
-        action: SnackBarAction(
-          label: '删除',
-          onPressed: () {
-            _delRecentConnection(connection);
-          },
-        ),
-        )
-    );
-  }
   Future<void> _connectToServer(ConnectionInfo connection) async {
     setState(() {
       _isConnecting = true;
@@ -349,7 +389,12 @@ class _MainPageState extends State<MainPage> {
       await _addToRecentConnections(connection);
 
       if (mounted) {
-        Navigator.of(context).push(MaterialPageRoute(builder:(context) => TerminalPage(connection: connection, credential: credential)));
+        Navigator.of(context).push(MaterialPageRoute(
+          builder:(context) => TerminalPage(
+            connection: connection, 
+            credential: credential
+          )
+        ));
       }
     } catch (e) {
       if (mounted) {
@@ -364,6 +409,7 @@ class _MainPageState extends State<MainPage> {
       }
     }
   }
+
   void _showConnectionError(ConnectionInfo connection, String error) {
     showDialog(
       context: context, 
@@ -382,17 +428,20 @@ class _MainPageState extends State<MainPage> {
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(),
-          child: const Text ('取消'),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('取消'),
           ),
-          TextButton(onPressed: (){
-            Navigator.of(context).pop();
-            _connectToServer(connection);
-          },
-          child: const Text('重试')),
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _connectToServer(connection);
+            },
+            child: const Text('重试'),
+          ),
         ],
       ),
-      );
+    );
   }
 
   List<Widget> _buildButtons(
@@ -400,7 +449,6 @@ class _MainPageState extends State<MainPage> {
     bool showSubtitle, 
     double screenHeight,
   ) {
-
     const double buttonHeight = 80;
     
     Widget buildButton({
