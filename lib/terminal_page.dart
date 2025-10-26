@@ -118,12 +118,13 @@ class _TerminalPageState extends State<TerminalPage> {
           setState(() {
             _isConnected = false;
             _isConnecting = false;
-            _status = '连接已关闭';
+            _status = '连接已断开';
           });
           terminal.write('\r\n连接已断开\r\n');
         }
       });
-
+      terminal.write('\x1B[2J\x1B[1;1H');
+      terminal.buffer.clear(); 
       terminal.write('连接到 ${widget.connection.host} 成功\r\n');
     } catch (e) {
       if (mounted) {
@@ -245,43 +246,27 @@ class _TerminalPageState extends State<TerminalPage> {
   // 获取AppBar背景色
   Color _getAppBarColor() {
     if (_isConnecting) {
-      return Colors.transparent; // 连接中：透明
+      return Colors.transparent; 
     } else if (_isConnected) {
-      return Colors.green; // 已连接：绿色
+      return Colors.green; 
     } else {
-      return Colors.red; // 断开：红色
+      return Colors.red;
     }
   }
 
-  // 构建菜单项
   List<PopupMenuItem<String>> _buildMenuItems() {
     final items = <PopupMenuItem<String>>[];
 
-    // 如果断开连接，在菜单第一项添加重新连接
-    if (!_isConnected && !_isConnecting) {
-      items.add(
-        const PopupMenuItem<String>(
-          value: 'reconnect',
-          child: Row(
-            children: [
-              Icon(Icons.refresh, size: 20),
-              SizedBox(width: 8),
-              Text('重新连接'),
-            ],
-          ),
-        ),
-      );
-    }
-
     // 其他菜单项
     items.addAll([
+      const PopupMenuItem<String>(value: 'reconnect', child: Text('重新连接')),
       const PopupMenuItem<String>(value: 'enter', child: Text('发送 Enter')),
       const PopupMenuItem<String>(value: 'tab', child: Text('发送 Tab')),
       const PopupMenuItem<String>(value: 'backspace', child: Text('发送 Backspace')),
       const PopupMenuItem<String>(value: 'ctrlc', child: Text('发送 Ctrl+C')),
       const PopupMenuItem<String>(value: 'ctrld', child: Text('发送 Ctrl+D')),
       const PopupMenuItem<String>(value: 'clear', child: Text('清屏')),
-      const PopupMenuItem<String>(value: 'disconnect', child: Text('断开连接')),
+      const PopupMenuItem<String>(value: 'disconnect', child: Text('断开连接并返回')),
     ]);
 
     return items;
@@ -351,16 +336,6 @@ class _TerminalPageState extends State<TerminalPage> {
                   ),
                 ),
                 const SizedBox(width: 10),
-                if (!_isConnected && !_isConnecting)
-                  TextButton(
-                    onPressed: _connectToHost,
-                    style: TextButton.styleFrom(
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      minimumSize: const Size(0, 24),
-                    ),
-                    child: const Text('重新连接'),
-                  ),
               ],
             ),
           ],
