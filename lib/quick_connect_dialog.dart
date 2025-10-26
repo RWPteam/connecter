@@ -35,6 +35,7 @@ class _QuickConnectDialogState extends State<QuickConnectDialog> {
   bool _rememberConnection = false;
   bool _isConnecting = false;
   bool _isEditing = false;
+  bool _isNameChanged = false;
 
   @override
   void initState() {
@@ -42,7 +43,6 @@ class _QuickConnectDialogState extends State<QuickConnectDialog> {
     _isEditing = widget.connection != null;
     
     if (_isEditing) {
-      // 编辑模式：预填充所有字段
       _nameController.text = widget.connection!.name;
       _hostController.text = widget.connection!.host;
       _portController.text = widget.connection!.port.toString();
@@ -51,6 +51,7 @@ class _QuickConnectDialogState extends State<QuickConnectDialog> {
     } else {
       // 新建连接或快速连接模式：设置默认名称
       _nameController.text = '新连接';
+      _isNameChanged = false;
     }
     
     _loadCredentials();
@@ -81,6 +82,7 @@ class _QuickConnectDialogState extends State<QuickConnectDialog> {
 
   // 自动生成连接名称
   void _generateConnectionName() {
+    if (_isNameChanged) return;
     if (!_isEditing && (_hostController.text.isNotEmpty || _portController.text.isNotEmpty)) {
       final host = _hostController.text;
       final port = _portController.text;
@@ -90,6 +92,27 @@ class _QuickConnectDialogState extends State<QuickConnectDialog> {
         });
       }
     }
+  }
+
+  void _reserToDefaultName() {
+    setState(() {
+      _isNameChanged = false;
+    });
+    _generateConnectionName();
+  }
+  
+  void _addNewCredential() {
+    showDialog(context: context, builder: (context) => CredentialDialog(
+      onSaved: () {
+        _loadCredentials().then((_) {
+          if(_credentials.isNotEmpty) {
+            setState(() {
+              _selectedCredential =_credentials.last;
+            });
+          }
+        });
+      },
+    ));
   }
 
   Future<void> _connectToServer() async {
@@ -265,23 +288,12 @@ class _QuickConnectDialogState extends State<QuickConnectDialog> {
     );
   }
 
-  void _addNewCredential() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const ManageCredentialsPage(),
-      ),
-    ).then((_) => _loadCredentials());
-  }
-
-  // 获取对话框标题
   String _getDialogTitle() {
     if (widget.isNewConnection) return '新建连接';
     if (_isEditing) return '编辑连接';
     return '快速连接';
   }
 
-  // 获取操作按钮文本
   String _getActionButtonText() {
     if (widget.isNewConnection) return '保存';
     if (_isEditing) return '更新';
@@ -310,6 +322,13 @@ class _QuickConnectDialogState extends State<QuickConnectDialog> {
                     tooltip: '还原默认',
                   ) : null,
                 ),
+                onChanged: (value) {
+                  if(!_isEditing) {
+                    setState(() {
+                      _isNameChanged = true;
+                    });
+                  }
+                },
                 validator: (value) {
                   if (value == null || value.isEmpty) {
                     return '请输入连接名称';
