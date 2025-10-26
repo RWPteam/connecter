@@ -160,7 +160,9 @@ class _TerminalPageState extends State<TerminalPage> {
     final inserted = cur.substring(prefix, suffixCur);
 
     if (deleted.isNotEmpty) {
-      for (int i = 0; i < deleted.runes.length; i++) _sendText('\x08');
+      for (int i = 0; i < deleted.runes.length; i++) {
+        _sendText('\x08');
+      }
     }
 
     if (inserted.isNotEmpty) {
@@ -236,9 +238,7 @@ class _TerminalPageState extends State<TerminalPage> {
 
   List<PopupMenuEntry<String>> _buildMenuItems() {
     return [
-      const PopupMenuItem<String>(value: 'fontsize', child: Text('字体大小')),
       const PopupMenuItem<String>(value: 'reconnect', child: Text('重新连接')),
-      // 二级菜单：发送命令
       const PopupMenuItem<String>(
         value: 'commands',
         child: Row(
@@ -250,6 +250,7 @@ class _TerminalPageState extends State<TerminalPage> {
         ),
       ),
       const PopupMenuItem<String>(value: 'clear', child: Text('清屏')),
+      const PopupMenuItem<String>(value: 'fontsize', child: Text('字体大小')),
       const PopupMenuDivider(),
       const PopupMenuItem<String>(value: 'disconnect', child: Text('断开连接并返回')),
     ];
@@ -264,7 +265,6 @@ class _TerminalPageState extends State<TerminalPage> {
         _connectToHost();
         break;
       case 'commands':
-        // 显示二级菜单
         _showCommandsSubMenu();
         break;
       case 'clear':
@@ -276,7 +276,6 @@ class _TerminalPageState extends State<TerminalPage> {
     }
   }
 
-  // 显示发送命令的二级菜单
   void _showCommandsSubMenu() {
     final RenderBox button = context.findRenderObject() as RenderBox;
     final RenderBox overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
