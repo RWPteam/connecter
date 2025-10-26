@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:xterm/xterm.dart';
@@ -9,7 +8,6 @@ import 'package:dartssh2/dartssh2.dart';
 import 'models/connection_model.dart';
 import 'models/credential_model.dart';
 import 'services/ssh_service.dart';
-
 
 class TerminalPage extends StatefulWidget {
   final ConnectionInfo connection;
@@ -30,13 +28,13 @@ class _TerminalPageState extends State<TerminalPage> {
   SSHClient? _sshClient;
   SSHSession? _session;
   bool _isConnected = false;
+  bool _isConnecting = true; // 新增：标记是否正在连接
   String _status = '连接中...';
   StreamSubscription<List<int>>? _stdoutSubscription;
   StreamSubscription<List<int>>? _stderrSubscription;
 
   final TextEditingController _imeController = TextEditingController();
   final FocusNode _imeFocusNode = FocusNode();
-
   final FocusNode _rawKeyboardFocusNode = FocusNode();
 
   String _prevImeText = '';
@@ -45,7 +43,6 @@ class _TerminalPageState extends State<TerminalPage> {
   void initState() {
     super.initState();
 
-    // terminal：保持原有行为，不把 inputHandler 绑定到 widget 的内部 TextInput
     terminal = Terminal(
       maxLines: 10000,
     );
@@ -59,7 +56,6 @@ class _TerminalPageState extends State<TerminalPage> {
         }
       }
     };
-
 
     _imeController.addListener(_onImeChanged);
 
@@ -76,6 +72,11 @@ class _TerminalPageState extends State<TerminalPage> {
 
   Future<void> _connectToHost() async {
     try {
+      setState(() {
+        _isConnecting = true;
+        _status = '连接中...';
+      });
+
       final sshService = SshService();
       _sshClient = await sshService.connect(widget.connection, widget.credential);
 
@@ -88,6 +89,7 @@ class _TerminalPageState extends State<TerminalPage> {
 
       setState(() {
         _isConnected = true;
+        _isConnecting = false;
         _status = '已连接';
       });
 
@@ -115,6 +117,7 @@ class _TerminalPageState extends State<TerminalPage> {
         if (mounted) {
           setState(() {
             _isConnected = false;
+            _isConnecting = false;
             _status = '连接已关闭';
           });
           terminal.write('\r\n连接已断开\r\n');
@@ -126,6 +129,7 @@ class _TerminalPageState extends State<TerminalPage> {
       if (mounted) {
         setState(() {
           _isConnected = false;
+          _isConnecting = false;
           _status = '连接失败: $e';
         });
         terminal.write('连接失败: $e\r\n');
@@ -145,7 +149,6 @@ class _TerminalPageState extends State<TerminalPage> {
       prefix++;
     }
 
- 
     int suffixPrev = prev.length;
     int suffixCur = cur.length;
     while (suffixPrev > prefix && suffixCur > prefix &&
@@ -157,15 +160,12 @@ class _TerminalPageState extends State<TerminalPage> {
     final deleted = prev.substring(prefix, suffixPrev);
     final inserted = cur.substring(prefix, suffixCur);
 
-
     if (deleted.isNotEmpty) {
       for (int i = 0; i < deleted.runes.length; i++) {
         _sendText('\x08'); // backspace
       }
-  
     }
 
-  
     if (inserted.isNotEmpty) {
       _sendText(inserted);
       terminal.write(inserted);
@@ -186,33 +186,6 @@ class _TerminalPageState extends State<TerminalPage> {
     }
   }
 
-  // 物理键盘处理
-  //bool _handleRawKeyEvent(RawKeyEvent event) {
-    //if (event is RawKeyDownEvent) {
-      //final isCtrl = event.isControlPressed;
-      //final key = event.logicalKey;
-
-      //if (key == LogicalKeyboardKey.enter) {
-        //_sendText('\r\n');
-        //return true;
-      //} else if (key == LogicalKeyboardKey.backspace) {
-      //  _sendText('\x08');
-      //  return true;
-      //} else if (key == LogicalKeyboardKey.tab) {
-      //  _sendText('\t');
-      //  return true;
-      //} else if (isCtrl && key == LogicalKeyboardKey.keyC) {
-      //  _sendText('\x03');
-      //  return true;
-      //} else if (isCtrl && key == LogicalKeyboardKey.keyD) {
-      //  _sendText('\x04');
-      //  return true;
-      //} else {
-      //}
-    //}
-    //return false;
-  //}
-
   // 处理剪贴板粘贴（把整个文本发送）
   Future<void> _pasteFromClipboard() async {
     try {
@@ -226,24 +199,23 @@ class _TerminalPageState extends State<TerminalPage> {
     }
   }
 
-void _clearTerminal() {
-  terminal.write('\x1B[2J\x1B[1;1H');
-  terminal.buffer.clear();      // 清空 scrollback buffer
+  void _clearTerminal() {
+    terminal.write('\x1B[2J\x1B[1;1H');
+    terminal.buffer.clear();      // 清空 scrollback buffer
 
-  if (_session != null && _isConnected) {
-    try {
-      _sendText('\x15');
-      _sendText('\x0C');
-      _sendText('\x1B[2J\x1B[H');
-      _sendText('clear\r');
-    } catch (e) {
-      // 忽略
+    if (_session != null && _isConnected) {
+      try {
+        _sendText('\x15');
+        _sendText('\x0C');
+        _sendText('\x1B[2J\x1B[H');
+        _sendText('clear\r');
+      } catch (e) {
+        // 忽略
+      }
+    } else {
+      // 未连接时，仅本地清屏
     }
-  } else {
-    // 未连接时，仅本地清屏
   }
-}
-
 
   void _sendCtrlC() => _sendText('\x03');
   void _sendCtrlD() => _sendText('\x04');
@@ -270,101 +242,142 @@ void _clearTerminal() {
     }
   }
 
+  // 获取AppBar背景色
+  Color _getAppBarColor() {
+    if (_isConnecting) {
+      return Colors.transparent; // 连接中：透明
+    } else if (_isConnected) {
+      return Colors.green; // 已连接：绿色
+    } else {
+      return Colors.red; // 断开：红色
+    }
+  }
+
+  // 构建菜单项
+  List<PopupMenuItem<String>> _buildMenuItems() {
+    final items = <PopupMenuItem<String>>[];
+
+    // 如果断开连接，在菜单第一项添加重新连接
+    if (!_isConnected && !_isConnecting) {
+      items.add(
+        const PopupMenuItem<String>(
+          value: 'reconnect',
+          child: Row(
+            children: [
+              Icon(Icons.refresh, size: 20),
+              SizedBox(width: 8),
+              Text('重新连接'),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // 其他菜单项
+    items.addAll([
+      const PopupMenuItem<String>(value: 'enter', child: Text('发送 Enter')),
+      const PopupMenuItem<String>(value: 'tab', child: Text('发送 Tab')),
+      const PopupMenuItem<String>(value: 'backspace', child: Text('发送 Backspace')),
+      const PopupMenuItem<String>(value: 'ctrlc', child: Text('发送 Ctrl+C')),
+      const PopupMenuItem<String>(value: 'ctrld', child: Text('发送 Ctrl+D')),
+      const PopupMenuItem<String>(value: 'clear', child: Text('清屏')),
+      const PopupMenuItem<String>(value: 'disconnect', child: Text('断开连接')),
+    ]);
+
+    return items;
+  }
+
+  // 处理菜单选择
+  void _onMenuSelected(String value) {
+    switch (value) {
+      case 'reconnect':
+        _connectToHost();
+        break;
+      case 'enter':
+        _sendText('\r');
+        break;
+      case 'tab':
+        _sendText('\t');
+        break;
+      case 'backspace':
+        _sendText('\x08');
+        break;
+      case 'ctrlc':
+        _sendCtrlC();
+        break;
+      case 'ctrld':
+        _sendCtrlD();
+        break;
+      case 'clear':
+        _clearTerminal();
+        break;
+      case 'disconnect':
+        Navigator.of(context).pop();
+        break;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final _ = defaultTargetPlatform == TargetPlatform.android ||
-        defaultTargetPlatform == TargetPlatform.iOS;
-
     return Scaffold(
-appBar: AppBar(
-  backgroundColor: _isConnected ? Colors.green : Colors.red,
-  foregroundColor: Colors.white,
-  title: Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Text(
-        '${widget.connection.host}:${widget.connection.port}',
-        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-      ),
-      const SizedBox(height: 2),
-      Row(
-        children: [
-          Icon(
-            _isConnected ? Icons.circle : Icons.circle_outlined,
-            color: Colors.white,
-            size: 10,
-          ),
-          const SizedBox(width: 6),
-          Text(
-            _status,
-            style: const TextStyle(fontSize: 12, color: Colors.white70),
-          ),
-          const SizedBox(width: 10),
-          if (!_isConnected)
-            TextButton(
-              onPressed: _connectToHost,
-              style: TextButton.styleFrom(
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                minimumSize: const Size(0, 24),
+      appBar: AppBar(
+        backgroundColor: _getAppBarColor(),
+        foregroundColor: Colors.white, 
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '${widget.connection.host}:${widget.connection.port}',
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.white, 
               ),
-              child: const Text('重新连接'),
             ),
+            const SizedBox(height: 2),
+            Row(
+              children: [
+                Icon(
+                  _isConnected ? Icons.circle : Icons.circle_outlined,
+                  color: _isConnecting ? Colors.grey : Colors.white,
+                  size: 10,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  _status,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color:  Colors.white70,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                if (!_isConnected && !_isConnecting)
+                  TextButton(
+                    onPressed: _connectToHost,
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      minimumSize: const Size(0, 24),
+                    ),
+                    child: const Text('重新连接'),
+                  ),
+              ],
+            ),
+          ],
+        ),
+        actions: [
+          PopupMenuButton<String>(
+            itemBuilder: (context) => _buildMenuItems(),
+            onSelected: _onMenuSelected,
+          ),
         ],
       ),
-    ],
-  ),
-  actions: [
-    PopupMenuButton(
-      itemBuilder: (context) => [
-        const PopupMenuItem(value: 'enter', child: Text('发送 Enter')),
-        const PopupMenuItem(value: 'tab', child: Text('发送 Tab')),
-        const PopupMenuItem(value: 'backspace', child: Text('发送 Backspace')),
-        const PopupMenuItem(value: 'ctrlc', child: Text('发送 Ctrl+C')),
-        const PopupMenuItem(value: 'ctrld', child: Text('发送 Ctrl+D')),
-        const PopupMenuItem(value: 'clear', child: Text('清屏')),
-        const PopupMenuItem(value: 'disconnect', child: Text('断开连接')),
-      ],
-      onSelected: (value) {
-        switch (value) {
-          case 'enter':
-            _sendText('\r');
-            break;
-          case 'tab':
-            _sendText('\t');
-            break;
-          case 'backspace':
-            _sendText('\x08');
-            break;
-          case 'ctrlc':
-            _sendCtrlC();
-            break;
-          case 'ctrld':
-            _sendCtrlD();
-            break;
-          case 'clear':
-            _clearTerminal();
-            break;
-          case 'disconnect':
-            Navigator.of(context).pop();
-            break;
-        }
-      },
-    ),
-  ],
-),
-
       body: Column(
         children: [
-          // 终端主区：使用 Stack 放置 TerminalView（显示），以及透明的 EditableText（接受 IME）
-          // 完全禁用了onKey，只使用EditableText来接受文字输入
           Expanded(
             // ignore: deprecated_member_use
             child: RawKeyboardListener(
               focusNode: _rawKeyboardFocusNode,
-              //onKey: (event) {
-                //_handleRawKeyEvent(event);
-              //},
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onTap: _onTerminalTap,
@@ -385,8 +398,6 @@ appBar: AppBar(
                     ),
                   );
                 },
-
-
                 onSecondaryTapDown: (details) async {
                   // 右键（桌面） -> 粘贴
                   await _pasteFromClipboard();
@@ -402,8 +413,7 @@ appBar: AppBar(
                       ),
                       autoResize: true,
                       readOnly: false,
-                      hardwareKeyboardOnly:
-                          true, 
+                      hardwareKeyboardOnly: true,
                     ),
                     Positioned(
                       left: 8,
@@ -411,7 +421,7 @@ appBar: AppBar(
                       width: 1,
                       height: 1,
                       child: Opacity(
-                        opacity: 0.0, 
+                        opacity: 0.0,
                         child: IgnorePointer(
                           ignoring: false,
                           child: EditableText(
