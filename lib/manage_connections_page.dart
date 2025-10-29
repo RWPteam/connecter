@@ -8,17 +8,17 @@ import 'quick_connect_dialog.dart';
 import 'services/ssh_service.dart';
 import 'sftp_page.dart';
 
-
 class ManageConnectionsPage extends StatefulWidget {
   const ManageConnectionsPage({super.key});
 
   @override
   State<ManageConnectionsPage> createState() => _ManageConnectionsPageState();
-  }
+}
 
 class _ManageConnectionsPageState extends State<ManageConnectionsPage> {
   final _storageService = StorageService();
   List<ConnectionInfo> _connections = [];
+  bool _isConnecting = false;
 
   @override
   void initState() {
@@ -33,97 +33,139 @@ class _ManageConnectionsPageState extends State<ManageConnectionsPage> {
     });
   }
 
+  void _editConnection(ConnectionInfo connection) {
+    showDialog(
+      context: context,
+      builder: (context) => QuickConnectDialog(connection: connection),
+    ).then((_) => _loadConnections());
+  }
 
-void _editConnection(ConnectionInfo connection) {
-  showDialog(
-    context: context,
-    builder: (context) => QuickConnectDialog(connection: connection),
-  ).then((_) => _loadConnections());
-}
-
-void _deleteConnection(ConnectionInfo connection) {
-  showDialog(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: const Text('删除连接'),
-      content: Text('要删除连接 "${connection.name}" 吗？'),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('取消'),
-        ),
-        TextButton(
-          onPressed: () async {
-            await _storageService.deleteConnection(connection.id);
-            if (mounted) {
-              setState(() {
-                _loadConnections(); 
-              });
-            }
-            // ignore: use_build_context_synchronously
-            Navigator.of(context).pop();
-          },
-          child: const Text('删除'),
-        ),
-      ],
-    ),
-  );
-}
-
-void _connectTo(ConnectionInfo connection) async {
-  try {
-    final storageService = StorageService();
-    final sshService = SshService();
-    
-    final credentials = await storageService.getCredentials();
-    final credential = credentials.firstWhere(
-      (c) => c.id == connection.credentialId,
-      orElse: () => throw Exception('找不到认证凭证'),
+  void _deleteConnection(ConnectionInfo connection) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('删除连接'),
+        content: Text('要删除连接 "${connection.name}" 吗？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () async {
+              await _storageService.deleteConnection(connection.id);
+              if (mounted) {
+                setState(() {
+                  _loadConnections();
+                });
+              }
+              // ignore: use_build_context_synchronously
+              Navigator.of(context).pop();
+            },
+            child: const Text('删除'),
+          ),
+        ],
+      ),
     );
+  }
 
-    await sshService.connect(connection, credential);
-    await storageService.addRecentConnection(connection);
+  void _connectTo(ConnectionInfo connection) async {
+    // 防止重复点击
+    if (_isConnecting) return;
+    
+    setState(() {
+      _isConnecting = true;
+    });
 
-    if (mounted) {
-      if (connection.type == ConnectionType.sftp) {
-          Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => SftpPage(
-              connection: connection,
-              credential: credential,
-            ),
+    // 显示加载对话框
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+    
+      builder: (BuildContext context) {
+        return const AlertDialog(
+          backgroundColor: Colors.transparent,
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text('正在连接...'),
+            ],
           ),
         );
-      } else {
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => TerminalPage(
-              connection: connection,
-              credential: credential,
+      },
+    );
+
+    try {
+      final storageService = StorageService();
+      final sshService = SshService();
+      
+      final credentials = await storageService.getCredentials();
+      final credential = credentials.firstWhere(
+        (c) => c.id == connection.credentialId,
+        orElse: () => throw Exception('找不到认证凭证'),
+      );
+
+      await sshService.connect(connection, credential);
+      await storageService.addRecentConnection(connection);
+
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+
+      if (mounted) {
+        if (connection.type == ConnectionType.sftp) {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => SftpPage(
+                connection: connection,
+                credential: credential,
+              ),
             ),
+          );
+        } else {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => TerminalPage(
+                connection: connection,
+                credential: credential,
+              ),
+            ),
+          );
+        }
+      }
+
+    } catch (e) {
+      // 关闭加载对话框
+      if (mounted) {
+        Navigator.of(context).pop(); // 关闭加载对话框
+      }
+
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('连接失败'),
+            content: Text(e.toString()),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('确定'),
+              ),
+            ],
           ),
         );
       }
-    }
-
-  } catch (e) {
-    if (mounted) {
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('连接失败'),
-          content: Text(e.toString()),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('确定'),
-            ),
-          ],
-        ),
-      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isConnecting = false;
+        });
+      }
     }
   }
-}
+
   void _showNewConnectionDialog() {
     showDialog(
       context: context, 
@@ -166,17 +208,17 @@ void _connectTo(ConnectionInfo connection) async {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         IconButton(
-                          onPressed: () => _connectTo(connection),
+                          onPressed: _isConnecting ? null : () => _connectTo(connection),
                           icon: const Icon(Icons.play_arrow),
                           tooltip: '连接',
                         ),
                         IconButton(
-                          onPressed: () => _editConnection(connection),
+                          onPressed: _isConnecting ? null : () => _editConnection(connection),
                           icon: const Icon(Icons.edit),
                           tooltip: '编辑',
                         ),
                         IconButton(
-                          onPressed: () => _deleteConnection(connection),
+                          onPressed: _isConnecting ? null : () => _deleteConnection(connection),
                           icon: const Icon(Icons.delete),
                           tooltip: '删除',
                         ),

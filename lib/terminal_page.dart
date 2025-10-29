@@ -39,7 +39,6 @@ class _TerminalPageState extends State<TerminalPage> {
 
   String _prevImeText = '';
 
-  // ✅ 字体大小状态
   double _fontSize = 14.0;
   OverlayEntry? _fontSliderOverlay;
   Timer? _hideSliderTimer;
@@ -220,7 +219,7 @@ class _TerminalPageState extends State<TerminalPage> {
     _imeFocusNode.dispose();
     _rawKeyboardFocusNode.dispose();
     _hideSliderTimer?.cancel();
-    _fontSliderOverlay?.remove();
+    _hideFontSlider();
     super.dispose();
   }
 
@@ -230,6 +229,7 @@ class _TerminalPageState extends State<TerminalPage> {
       _prevImeText = '';
       _imeController.value = const TextEditingValue(text: '');
     }
+    _hideFontSlider();
   }
 
   Color _getAppBarColor() {
@@ -326,71 +326,84 @@ class _TerminalPageState extends State<TerminalPage> {
     }
   }
 
-void _showFontSlider() {
-  _hideSliderTimer?.cancel();
+  void _showFontSlider() {
+    _hideSliderTimer?.cancel();
 
-  _fontSliderOverlay ??= OverlayEntry(
-    builder: (context) {
-      return StatefulBuilder(
-        builder: (context, setStateOverlay) => Positioned(
-          left: 16,
-          right: 16,
-          bottom: 24,
-          child: Material(
-            elevation: 8,
-            borderRadius: BorderRadius.circular(16),
-            color: Colors.grey[900]!.withOpacity(0.95),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text('字体大小',
-                        style: TextStyle(color: Colors.white, fontSize: 16),
-                      ),
-                      Text(
-                        '${_fontSize.toInt()}',
-                        style: const TextStyle(color: Colors.white),
-                      ),
-                    ],
-                  ),
-                  Slider(
-                    value: _fontSize,
-                    min: 8,
-                    max: 40,
-                    divisions: 32,
-                    onChanged: (v) {
-                      // ✅ 更新 Terminal 字体大小
-                      setState(() => _fontSize = v);
-                      // ✅ 更新 Slider 自身 UI
-                      setStateOverlay(() {});
-                      // ✅ 保持 3s 后隐藏
-                      _resetHideSliderTimer();
-                    },
-                  ),
-                ],
+    _fontSliderOverlay ??= OverlayEntry(
+      builder: (context) {
+        return Stack(
+          children: [
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: _hideFontSlider,
+                child: Container(
+                  color: Colors.transparent,
+                ),
               ),
             ),
-          ),
-        ),
-      );
-    },
-  );
+            Positioned(
+              left: 16,
+              right: 16,
+              bottom: 24,
+              child: GestureDetector(
+                onTap: () {}, 
+                child: Material(
+                  elevation: 8,
+                  borderRadius: BorderRadius.circular(16),
+                  color: Colors.grey[900]!.withOpacity(0.95),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text('字体大小',
+                              style: TextStyle(color: Colors.white, fontSize: 16),
+                            ),
+                            Text(
+                              '${_fontSize.toInt()}',
+                              style: const TextStyle(color: Colors.white),
+                            ),
+                          ],
+                        ),
+                        Slider(
+                          value: _fontSize,
+                          min: 8,
+                          max: 40,
+                          divisions: 32,
+                          onChanged: (v) {
+                            setState(() => _fontSize = v);
+                            _resetHideSliderTimer();
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
 
-  Overlay.of(context).insert(_fontSliderOverlay!);
-  _resetHideSliderTimer();
-}
+    Overlay.of(context).insert(_fontSliderOverlay!);
+    _resetHideSliderTimer();
+  }
+
+  void _hideFontSlider() {
+    _hideSliderTimer?.cancel();
+    _fontSliderOverlay?.remove();
+    _fontSliderOverlay = null;
+  }
 
   void _resetHideSliderTimer() {
     _hideSliderTimer?.cancel();
-    _hideSliderTimer = Timer(const Duration(seconds: 3), () {
-      _fontSliderOverlay?.remove();
-      _fontSliderOverlay = null;
-    });
+    _hideSliderTimer = Timer(const Duration(seconds: 3), _hideFontSlider);
   }
 
   @override
@@ -436,6 +449,9 @@ void _showFontSlider() {
                   } else if (event.logicalKey.keyLabel == '-') {
                     setState(() => _fontSize = (_fontSize - 1).clamp(8, 40));
                   }
+                }
+                if (event.logicalKey == LogicalKeyboardKey.escape) {
+                  _hideFontSlider();
                 }
               },
               child: GestureDetector(

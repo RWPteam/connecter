@@ -1,4 +1,3 @@
-// sftp_page.dart
 import 'dart:io';
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -19,29 +18,30 @@ class SftpPage extends StatefulWidget {
   });
 
   @override
+  
   State<SftpPage> createState() => _SftpPageState();
 }
-
+  enum ViewMode { list, icon }
+  ViewMode _viewMode = ViewMode.list;
 class _SftpPageState extends State<SftpPage> {
   final SshService _sshService = SshService();
   SSHClient? _sshClient;
   dynamic _sftpClient;
-  
+  String? _clipboardFilePath;
+  bool _clipboardIsDirectory = false;
+  bool _clipboardIsCut = false;
   List<dynamic> _fileList = [];
   String _currentPath = '/';
   bool _isLoading = true;
   bool _isConnected = false;
   String _status = '连接中...';
   Color _appBarColor = Colors.transparent;
-
   final Set<String> _selectedFiles = {};
   bool _isMultiSelectMode = false;
-
   double _uploadProgress = 0.0;
   double _downloadProgress = 0.0;
   String _currentOperation = '';
   bool _cancelOperation = false;
-
   dynamic _currentUploader;
   dynamic _currentDownloadFile;
 
@@ -51,20 +51,18 @@ class _SftpPageState extends State<SftpPage> {
     _connectSftp();
   }
 
-  // 获取图标颜色 - 根据主题模式切换
   Color _getIconColor(BuildContext context) {
     return Theme.of(context).brightness == Brightness.dark 
         ? Colors.white 
         : Colors.black;
   }
 
-  // 获取禁用状态图标颜色
   Color _getDisabledIconColor(BuildContext context) {
     return Theme.of(context).brightness == Brightness.dark 
         ? Colors.grey 
         : Colors.grey[600]!;
   }
-
+  
   Future<void> _connectSftp() async {
     try {
       if (!mounted) return;
@@ -179,11 +177,15 @@ class _SftpPageState extends State<SftpPage> {
   }
 
   void _toggleFileSelection(String filename) {
-    if (!mounted) return;
+    if (!mounted || !_isMultiSelectMode) return;
 
     setState(() {
       if (_selectedFiles.contains(filename)) {
         _selectedFiles.remove(filename);
+        // 如果没有选中任何文件，自动退出多选模式
+        if (_selectedFiles.isEmpty) {
+          _isMultiSelectMode = false;
+        }
       } else {
         _selectedFiles.add(filename);
       }
@@ -193,9 +195,31 @@ class _SftpPageState extends State<SftpPage> {
   void _toggleMultiSelectMode() {
     setState(() {
       _isMultiSelectMode = !_isMultiSelectMode;
-      if (!_isMultiSelectMode) {
+      _selectedFiles.clear();
+    });
+  }
+
+  void _selectAllFiles() {
+    if (_isMultiSelectMode == true) {
+      _toggleMultiSelectMode();
+    } else {
+      setState(() {
+        _isMultiSelectMode = true;
         _selectedFiles.clear();
-      }
+        for (var item in _fileList) {
+          final filename = item.filename.toString();
+          _selectedFiles.add(filename);
+        }
+      });
+    }
+  }
+
+  void _clearSelectionAndExitMultiSelect() {
+    if (!mounted) return;
+    
+    setState(() {
+      _selectedFiles.clear();
+      _isMultiSelectMode = false;
     });
   }
 
@@ -282,6 +306,42 @@ class _SftpPageState extends State<SftpPage> {
     }
   }
     
+  Future<void> _deleteSelectedFilesAction() async {
+    try {
+      int successCount = 0;
+
+      for (final filename in _selectedFiles) {
+        final itemPath = _joinPath(_currentPath, filename);
+
+        try {
+          final stat = await _sftpClient.stat(itemPath);
+          if (stat.isDirectory) {
+            await _sftpClient.rmdir(itemPath);
+          } else {
+            await _sftpClient.remove(itemPath);
+          }
+          successCount++;
+        } catch (e) {
+          debugPrint('删除 $filename 失败: $e');
+        }
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('删除完成: $successCount/${_selectedFiles.length}')),
+        );
+        
+        // 删除操作后清空选择并退出多选模式
+        _clearSelectionAndExitMultiSelect();
+        
+        await _loadDirectory(_currentPath);
+      }
+    } catch (e) {
+      _showErrorDialog('删除失败', e.toString());
+    }
+  }
+
+
   Future<void> _downloadSelectedFiles() async {
     if (_selectedFiles.isEmpty) return;
 
@@ -380,7 +440,7 @@ class _SftpPageState extends State<SftpPage> {
           try {
             await localFile.delete();
           } catch (deleteError) {
-            debugPrint('删除不完整文件失败: $deleteError');
+            debugPrint('删除本地存在的文件失败: $deleteError');
           }
         }
       }
@@ -396,9 +456,8 @@ class _SftpPageState extends State<SftpPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('下载完成: $successCount / $total 个文件')),
       );
-      setState(() {
-        _selectedFiles.clear();
-      });
+      
+      _clearSelectionAndExitMultiSelect();
     }
 
     _downloadProgress = 0;
@@ -469,40 +528,6 @@ class _SftpPageState extends State<SftpPage> {
     );
   }
 
-  Future<void> _deleteSelectedFilesAction() async {
-    try {
-      int successCount = 0;
-
-      for (final filename in _selectedFiles) {
-        final itemPath = _joinPath(_currentPath, filename);
-
-        try {
-          final stat = await _sftpClient.stat(itemPath);
-          if (stat.isDirectory) {
-            await _sftpClient.rmdir(itemPath);
-          } else {
-            await _sftpClient.remove(itemPath);
-          }
-          successCount++;
-        } catch (e) {
-          debugPrint('删除 $filename 失败: $e');
-        }
-      }
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('删除完成: $successCount/${_selectedFiles.length}')),
-        );
-        setState(() {
-          _selectedFiles.clear();
-        });
-        await _loadDirectory(_currentPath);
-      }
-    } catch (e) {
-      _showErrorDialog('删除失败', e.toString());
-    }
-  }
-
   Future<void> _showFileDetails() async {
     if (_selectedFiles.length != 1) return;
 
@@ -544,6 +569,130 @@ class _SftpPageState extends State<SftpPage> {
     } catch (e) {
       _showErrorDialog('获取文件详情失败', e.toString());
     }
+  }
+
+  Widget _buildListView() {
+    return ListView.builder(
+      itemCount: _fileList.length,
+      itemBuilder: _buildFileItem,
+    );
+  }
+
+  Widget _buildGridView() {
+    final screenWidth = MediaQuery.of(context).size.width;
+    int crossAxisCount;
+    if (screenWidth >= 1600) {
+      crossAxisCount = 10;
+    } else if (screenWidth >= 1300) {
+      crossAxisCount = 8;
+    } else if (screenWidth >= 1000) {
+      crossAxisCount = 7;
+    } else if (screenWidth >= 800) {
+      crossAxisCount = 6;
+    } else if (screenWidth >= 600) {
+      crossAxisCount = 5;
+    } else if (screenWidth >= 400) {
+      crossAxisCount = 4;
+    } else {
+      crossAxisCount = 3;
+    }
+
+    return GridView.builder(
+      padding: const EdgeInsets.fromLTRB(4, 24, 4, 4), 
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: crossAxisCount,
+        mainAxisSpacing: 4,
+        crossAxisSpacing: 4,
+        childAspectRatio: 0.95,
+      ),
+      itemCount: _fileList.length,
+      itemBuilder: (context, index) {
+        final item = _fileList[index];
+        final isDirectory = item.attr?.isDirectory == true;
+        final filename = item.filename.toString();
+        final isSelected = _selectedFiles.contains(filename);
+
+        return GestureDetector(
+          onTap: () {
+            if (_isMultiSelectMode) {
+              _toggleFileSelection(filename);
+            } else if (isDirectory) {
+              _loadDirectory(_joinPath(_currentPath, filename));
+            }
+          },
+          onLongPress: () {
+            if (!_isMultiSelectMode) {
+              _toggleMultiSelectMode();
+            }
+            _toggleFileSelection(filename);
+          },
+          child: Container(
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? Colors.blue.withOpacity(0.12)
+                  : null,
+              borderRadius: BorderRadius.circular(5),
+              border: isSelected
+                  ? Border.all(color: Colors.blueAccent, width: 1.3)
+                  : null,
+            ),
+            padding: const EdgeInsets.all(4),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center, // 改为居中对齐
+              crossAxisAlignment: CrossAxisAlignment.center, // 水平居中对齐
+              children: [
+                Icon(
+                  isDirectory ? Icons.folder : Icons.insert_drive_file,
+                  size: 50,
+                  color: isDirectory ? Colors.blueAccent : Colors.grey,
+                ),
+                const SizedBox(height: 4), // 添加固定间距
+                Text(
+                  filename,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 14),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+    
+  Widget _buildFileItem(BuildContext context, int index) {
+    final item = _fileList[index];
+    final isDirectory = item.attr?.isDirectory == true;
+    final filename = item.filename.toString();
+    final size = item.attr?.size ?? 0;
+    final isSelected = _selectedFiles.contains(filename);
+
+    return ListTile(
+      leading: Icon(
+        isDirectory ? Icons.folder : Icons.insert_drive_file,
+        color: isDirectory ? Colors.blueAccent : Colors.grey,
+      ),
+      title: Text(filename),
+      subtitle: Text(isDirectory ? '文件夹' : _formatFileSize(size)),
+      onTap: () {
+        if (_isMultiSelectMode) {
+          _toggleFileSelection(filename);
+        } else if (isDirectory) {
+          _loadDirectory(_joinPath(_currentPath, filename));
+        }
+      },
+      onLongPress: () {
+        if (!_isMultiSelectMode) {
+          _toggleMultiSelectMode();
+        }
+        _toggleFileSelection(filename);
+      },
+      tileColor: isSelected
+          ? Colors.blue.withOpacity(0.3)
+          : null,
+    );
   }
 
   Widget _buildDetailItem(String label, String value) {
@@ -596,50 +745,110 @@ class _SftpPageState extends State<SftpPage> {
   String _getPermissions(dynamic stat) {
     try {
       final mode = stat.mode;
-      if (mode == null) return '未知';
+      if (mode == null) return '---------';
 
-      if (mode is int) {
-        final permissions = StringBuffer();
-        permissions.write((mode & 0x100) != 0 ? 'r' : '-');
-        permissions.write((mode & 0x80) != 0 ? 'w' : '-');
-        permissions.write((mode & 0x40) != 0 ? 'x' : '-');
-        permissions.write((mode & 0x20) != 0 ? 'r' : '-');
-        permissions.write((mode & 0x10) != 0 ? 'w' : '-');
-        permissions.write((mode & 0x8) != 0 ? 'x' : '-');
-        permissions.write((mode & 0x4) != 0 ? 'r' : '-');
-        permissions.write((mode & 0x2) != 0 ? 'w' : '-');
-        permissions.write((mode & 0x1) != 0 ? 'x' : '-');
-        return permissions.toString();
+      // 处理字符串格式，如 "de(400644)"
+      if (mode is String) {
+        final match = RegExp(r'\((\d+)\)').firstMatch(mode);
+        if (match != null) {
+          final octalString = match.group(1);
+          if (octalString != null && octalString.length >= 3) {
+            // 取最后3位或4位（如果有4位，第一位是特殊权限位）
+            final lastDigits = octalString.length > 3 
+                ? octalString.substring(octalString.length - 3)
+                : octalString;
+            
+            return _octalToPermissionString(lastDigits);
+          }
+        }
+        
+        // 如果无法从括号中提取，尝试直接解析整个字符串
+        if (mode.length >= 3) {
+          final lastDigits = mode.length > 3 
+              ? mode.substring(mode.length - 3)
+              : mode;
+          
+          // 检查是否是纯数字
+          if (RegExp(r'^\d+$').hasMatch(lastDigits)) {
+            return _octalToPermissionString(lastDigits);
+          }
+        }
+        
+        return '---------';
       }
 
-      return '未知';
+      // 处理整数格式（原有逻辑）
+      if (mode is int) {
+        return _intToPermissionString(mode);
+      }
+
+      // 如果 mode 不是整数也不是字符串，尝试其他方式解析
+      final modeStr = mode.toString();
+      
+      // 尝试从字符串中提取数字权限
+      final digitMatch = RegExp(r'(\d{3,4})').firstMatch(modeStr);
+      if (digitMatch != null) {
+        final digits = digitMatch.group(1)!;
+        final lastThree = digits.length > 3 
+            ? digits.substring(digits.length - 3)
+            : digits;
+        return _octalToPermissionString(lastThree);
+      }
+      
+      if (modeStr.length >= 9 && RegExp(r'^[rwsxt-]{9,}$').hasMatch(modeStr)) {
+        return modeStr.length > 9 ? modeStr.substring(modeStr.length - 9) : modeStr;
+      }
+
+      return '---------';
     } catch (e) {
-      return '未知';
+      debugPrint('获取权限失败: $e');
+      return '---------';
     }
+  }
+
+  String _octalToPermissionString(String octalString) {
+    if (octalString.length != 3) return '---------';
+    
+    final permissions = StringBuffer();
+    
+    for (int i = 0; i < 3; i++) {
+      final digit = int.tryParse(octalString[i]);
+      if (digit == null) return '---------';
+      
+      final read = (digit & 4) != 0;
+      final write = (digit & 2) != 0;
+      final execute = (digit & 1) != 0;
+      
+      permissions.write(read ? 'r' : '-');
+      permissions.write(write ? 'w' : '-');
+      permissions.write(execute ? 'x' : '-');
+    }
+    
+    return permissions.toString();
+  }
+
+  String _intToPermissionString(int mode) {
+    final permissions = StringBuffer();
+    
+    permissions.write((mode & 0x100) != 0 ? 'r' : '-'); // 读
+    permissions.write((mode & 0x80) != 0 ? 'w' : '-');  // 写  
+    permissions.write((mode & 0x40) != 0 ? 'x' : '-');  // 执行
+
+    permissions.write((mode & 0x20) != 0 ? 'r' : '-'); // 读
+    permissions.write((mode & 0x10) != 0 ? 'w' : '-'); // 写
+    permissions.write((mode & 0x8) != 0 ? 'x' : '-');  // 执行
+    
+    permissions.write((mode & 0x4) != 0 ? 'r' : '-'); // 读
+    permissions.write((mode & 0x2) != 0 ? 'w' : '-'); // 写
+    permissions.write((mode & 0x1) != 0 ? 'x' : '-'); // 执行
+    
+    return permissions.toString();
   }
 
   String _formatDate(int? timestamp) {
     if (timestamp == null) return '未知';
     final date = DateTime.fromMillisecondsSinceEpoch(timestamp * 1000);
     return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
-  }
-
-  Future<void> _copyPath() async {
-    String pathToCopy;
-
-    if (_selectedFiles.isEmpty) {
-      pathToCopy = _currentPath;
-    } else if (_selectedFiles.length == 1) {
-      pathToCopy = _joinPath(_currentPath, _selectedFiles.first);
-    } else {
-      return;
-    }
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('已复制路径: $pathToCopy')),
-      );
-    }
   }
 
   Future<void> _createDirectory() async {
@@ -692,6 +901,93 @@ class _SftpPageState extends State<SftpPage> {
     }
   }
 
+  Future<void> _copySelected() async {
+    if (_selectedFiles.length != 1) return;
+
+    final name = _selectedFiles.first;
+    final remotePath = _joinPath(_currentPath, name);
+
+    try {
+      final stat = await _sftpClient.stat(remotePath);
+      
+      if (!_hasReadPermission(stat)) {
+        _showErrorDialog('复制失败', '没有读取 $name 的权限');
+        return;
+      }
+
+      setState(() {
+        _clipboardFilePath = remotePath;
+        _clipboardIsDirectory = stat.isDirectory;
+        _clipboardIsCut = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('已复制')),
+      );
+      _clearSelectionAndExitMultiSelect();
+    } catch (e) {
+      _showErrorDialog('复制失败', e.toString());
+    }
+  }
+
+  Future<void> _cutSelected() async {
+    if (_selectedFiles.length != 1) return;
+
+    final name = _selectedFiles.first;
+    final remotePath = _joinPath(_currentPath, name);
+
+    try {
+      final stat = await _sftpClient.stat(remotePath);
+
+      if (!_hasWritePermission(stat)) {
+        _showErrorDialog('剪切失败', '没有修改 $name 的权限');
+        return;
+      }
+      
+      setState(() {
+        _clipboardFilePath = remotePath;
+        _clipboardIsDirectory = stat.isDirectory;
+        _clipboardIsCut = true;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('已剪切: $name')),
+      );
+    } catch (e) {
+      _showErrorDialog('剪切失败', e.toString());
+    }
+  }
+
+  bool _hasReadPermission(dynamic stat) {
+    try {
+      final permissions = _getPermissions(stat);
+      return permissions.length >= 9 && permissions[6] == 'r';
+    } catch (e) {
+      debugPrint('检查读取权限失败: $e');
+      return true; 
+    }
+  }
+
+  bool _hasWritePermission(dynamic stat) {
+    try {
+      final permissions = _getPermissions(stat);
+      return permissions.length >= 9 && permissions[7] == 'w';
+    } catch (e) {
+      debugPrint('检查写入权限失败: $e');
+      return true; 
+    }
+  }
+
+  //bool _hasExecutePermission(dynamic stat) {
+    //try {
+      //final permissions = _getPermissions(stat);
+      // 检查其他用户的执行权限（最后一位的x权限）
+      //return permissions.length >= 9 && permissions[8] == 'x';
+    //} catch (e) {
+      //debugPrint('检查执行权限失败: $e');
+      //return true; // 如果检查失败，默认允许
+    //}
+  //}
+
   void _showProgressDialog(String title, {required bool showCancel}) {
     showDialog(
       context: context,
@@ -730,6 +1026,132 @@ class _SftpPageState extends State<SftpPage> {
         );
       },
     );
+  }
+
+  Future<void> _pasteFile() async {
+    if (_clipboardFilePath == null) return;
+
+    final fileName = _clipboardFilePath!.split('/').last;
+    final newPath = _joinPath(_currentPath, fileName);
+
+    try {
+      setState(() => _isLoading = true);
+
+      if (_clipboardIsCut) {
+        // 剪切操作
+        await _sftpClient.rename(_clipboardFilePath!, newPath);
+        
+        // 检查剪切是否成功：源文件应该不存在，目标文件应该存在
+        bool sourceExists = true;
+        bool targetExists = false;
+        
+        try {
+          await _sftpClient.stat(_clipboardFilePath!);
+        } catch (e) {
+          sourceExists = false; // 源文件不存在，说明剪切成功
+        }
+        
+        try {
+          await _sftpClient.stat(newPath);
+          targetExists = true; // 目标文件存在，说明剪切成功
+        } catch (e) {
+          targetExists = false;
+        }
+        
+        if (!sourceExists && targetExists) {
+          // 剪切成功
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('移动成功: $fileName')),
+            );
+          }
+          
+          if (mounted) {
+            setState(() {
+              _selectedFiles.clear();
+              _clipboardFilePath = null;
+              _clipboardIsCut = false;
+            });
+          }
+          
+          if (mounted) {
+            await _loadDirectory(_currentPath);
+          }
+        } else {
+          // 剪切失败
+          throw Exception('剪切操作失败：权限不足或目标已存在');
+        }
+      } else {
+        // 复制操作
+        final cmd = _clipboardIsDirectory
+            ? 'cp -r "${_clipboardFilePath!}" "$newPath"'
+            : 'cp "${_clipboardFilePath!}" "$newPath"';
+
+        // 等待 SSH 会话建立
+        final session = await _sshClient!.execute(cmd);
+
+        // 等待命令执行完成
+        await session.done;
+
+        // 获取命令退出码
+        final exitCode = await session.exitCode;
+
+        // 检查命令是否成功执行 (退出码 0 表示成功)
+        if (exitCode == 0) {
+          // 命令执行成功，现在检查目标文件是否存在
+          bool targetExists = false;
+          try {
+            await _sftpClient.stat(newPath);
+            targetExists = true;
+          } catch (e) {
+            targetExists = false;
+          }
+          
+          if (targetExists) {
+            // 复制成功
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('复制成功: $fileName')),
+              );
+            }
+            
+            if (mounted) {
+              setState(() {
+                _selectedFiles.clear();
+                _clipboardFilePath = null;
+              });
+            }
+            
+            if (mounted) {
+              await _loadDirectory(_currentPath);
+            }
+          } else {
+            // 复制失败 - 目标文件不存在
+            throw Exception('复制操作失败：目标文件不存在');
+          }
+        } else {
+          // 命令执行失败
+          final stderr = await session.stderr.join();
+          throw Exception('复制命令执行失败，退出码: $exitCode\n错误: $stderr');
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        _showErrorDialog('粘贴失败', e.toString());
+      }
+      
+      // 操作失败后清空剪贴板
+      if (mounted) {
+        setState(() {
+          _clipboardFilePath = null;
+          _clipboardIsCut = false;
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   void _showErrorDialog(String title, String message) {
@@ -957,10 +1379,33 @@ class _SftpPageState extends State<SftpPage> {
                           icon: Icon(
                             _isMultiSelectMode ? Icons.check_box : Icons.check_box_outline_blank,
                           ),
-                          onPressed: _toggleMultiSelectMode,
-                          tooltip: _isMultiSelectMode ? '退出多选' : '多选模式',
+                          onPressed: _selectAllFiles,
+                          tooltip: _isMultiSelectMode ? '退出多选' : '全选',
                           color: iconColor,
                         ),
+                        IconButton(
+                          icon: const Icon(Icons.copy),
+                          onPressed: singleSelection ? _copySelected : null,
+                          tooltip: '复制',
+                          color: singleSelection ? iconColor : disabledIconColor,
+                        ),
+
+                        const SizedBox(width: 3),
+
+                        IconButton(
+                          icon: const Icon(Icons.paste),
+                          onPressed: _clipboardFilePath != null ? _pasteFile : null,
+                          tooltip: '粘贴',
+                          color: _clipboardFilePath != null ? iconColor : disabledIconColor,
+                        ),
+                        const SizedBox(width: 3),
+                        IconButton(
+                          icon: const Icon(Icons.cut),
+                          tooltip: '剪切',
+                          onPressed: singleSelection ? _cutSelected : null,
+                          color: singleSelection ? iconColor : disabledIconColor,
+                        ),
+
                       ],
                     ),
                   ),
@@ -985,44 +1430,25 @@ class _SftpPageState extends State<SftpPage> {
                         ),
                       
                       const SizedBox(width: 3),
-                      
-                      if (isWideScreen)
-                        TextButton.icon(
-                          icon: Icon(Icons.copy, color: (!hasSelection || singleSelection) ? iconColor : disabledIconColor),
-                          label: Text('复制路径', style: TextStyle(color: (!hasSelection || singleSelection) ? iconColor : disabledIconColor)),
-                          onPressed: (!hasSelection || singleSelection) ? _copyPath : null,
-                        )
-                      else
-                        IconButton(
-                          icon: const Icon(Icons.copy),
-                          onPressed: (!hasSelection || singleSelection) ? _copyPath : null,
-                          tooltip: '复制路径',
-                          color: (!hasSelection || singleSelection) ? iconColor : disabledIconColor,
-                        ),
-                      
-                      const SizedBox(width: 3),
-                      
                       if (isWideScreen)
                         TextButton.icon(
                           icon: Icon(Icons.view_module, color: disabledIconColor),
                           label: Text('切换视图', style: TextStyle(color: disabledIconColor)),
                           onPressed: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('切换视图功能开发中')),
-                            );
+                            setState(() {
+                              _viewMode = _viewMode == ViewMode.list ? ViewMode.icon : ViewMode.list;
+                            });
                           },
                         )
-                      else
-                        IconButton(
-                          icon: const Icon(Icons.view_module),
-                          onPressed: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('切换视图功能开发中')),
-                            );
-                          },
+                        else IconButton(
+                          icon: Icon(Icons.view_module, color: disabledIconColor),
                           tooltip: '切换视图',
-                          color: disabledIconColor,
-                        ),
+                          onPressed: () {
+                            setState(() {
+                              _viewMode = _viewMode == ViewMode.list ? ViewMode.icon : ViewMode.list;
+                            });
+                          },
+                        )
                     ],
                   ),
                 ),
@@ -1034,64 +1460,10 @@ class _SftpPageState extends State<SftpPage> {
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : _fileList.isEmpty
-                    ? const Center(
-                        child: Text('目录为空'),
-                      )
-                    : ListView.builder(
-                        itemCount: _fileList.length,
-                        itemBuilder: (context, index) {
-                          final item = _fileList[index];
-                          final isDirectory = item.attr?.isDirectory == true;
-                          final filename = item.filename.toString();
-                          final size = item.attr?.size ?? 0;
-                          final isSelected = _selectedFiles.contains(filename);
-
-                          return ListTile(
-                            leading: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                if (_isMultiSelectMode)
-                                  Checkbox(
-                                    value: isSelected,
-                                    onChanged: (value) {
-                                      _toggleFileSelection(filename);
-                                    },
-                                  ),
-                                Icon(
-                                  isDirectory ? Icons.folder : Icons.insert_drive_file,
-                                  color: isDirectory ? Colors.blueAccent : Colors.grey,
-                                ),
-                              ],
-                            ),
-                            title: Text(filename),
-                            subtitle: Text(
-                              isDirectory ? '文件夹' : _formatFileSize(size),
-                            ),
-                            onTap: () {
-                              if (isDirectory) {
-                                String newPath = _joinPath(_currentPath, filename);
-                                _loadDirectory(newPath);
-                              } else if (_isMultiSelectMode) {
-                                _toggleFileSelection(filename);
-                              } else {
-                                setState(() {
-                                  _selectedFiles.clear();
-                                  _selectedFiles.add(filename);
-                                });
-                              }
-                            },
-                            onLongPress: () {
-                              if (!_isMultiSelectMode) {
-                                _toggleMultiSelectMode();
-                              }
-                              _toggleFileSelection(filename);
-                            },
-                            tileColor: isSelected && !_isMultiSelectMode 
-                                ? Colors.blue.withOpacity(0.3)
-                                : null,
-                          );
-                        },
-                      ),
+                    ? const Center(child: Text('目录为空'))
+                    : _viewMode == ViewMode.list
+                        ? _buildListView()
+                        : _buildGridView(),
           ),
         ],
       ),
