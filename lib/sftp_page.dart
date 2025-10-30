@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:dartssh2/dartssh2.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:path_provider/path_provider.dart';
 import 'models/connection_model.dart';
 import 'models/credential_model.dart';
 import 'services/ssh_service.dart';
@@ -347,6 +348,39 @@ class _SftpPageState extends State<SftpPage> {
   }
 
 
+  Future<String?> _getDownloadPath(String fileName) async {
+    try {
+      final result = await FilePicker.platform.saveFile(
+        dialogTitle: '选择保存位置',
+        fileName: fileName,
+      );
+
+      // 添加空值检查和多平台兼容性处理
+      if (result == null || result.isEmpty) {
+        return null;
+      }
+
+      return result;
+    } catch (e) {
+      debugPrint('获取下载路径失败: $e');
+      
+      // 多平台兼容性处理
+      if (Platform.isAndroid) {
+        // Android 备用方案：使用外部存储目录
+        final directory = await getExternalStorageDirectory();
+        if (directory != null) {
+          return '${directory.path}/$fileName';
+        }
+      } else if (Platform.isIOS) {
+        // iOS 备用方案：使用文档目录
+        final directory = await getApplicationDocumentsDirectory();
+        return '${directory.path}/$fileName';
+      }
+      
+      return null;
+    }
+  }
+
   Future<void> _downloadSelectedFiles() async {
     if (_selectedFiles.isEmpty) return;
 
@@ -356,8 +390,31 @@ class _SftpPageState extends State<SftpPage> {
     if (_selectedFiles.isNotEmpty) {
       firstFileName = _selectedFiles.first;
       final firstSavePath = await _getDownloadPath(firstFileName);
-      if (firstSavePath == null) return;
-      saveDir = File(firstSavePath).parent.path;
+      
+      // 增强空值检查
+      if (firstSavePath == null || firstSavePath.isEmpty) {
+        if (mounted) {
+          _showErrorDialog('下载失败', '无法获取有效的保存路径');
+        }
+        return;
+      }
+      
+      try {
+        final file = File(firstSavePath);
+        final parentDir = file.parent;
+        
+        // 检查父目录是否存在且可写
+        if (!await parentDir.exists()) {
+          await parentDir.create(recursive: true);
+        }
+        
+        saveDir = parentDir.path;
+      } catch (e) {
+        if (mounted) {
+          _showErrorDialog('下载失败', '无法创建保存目录: $e');
+        }
+        return;
+      }
     }
 
     if (saveDir == null || !mounted) {
@@ -376,7 +433,10 @@ class _SftpPageState extends State<SftpPage> {
 
       final filename = _selectedFiles.elementAt(i);
       final remotePath = _joinPath(_currentPath, filename);
-      final localFile = File('$saveDir/$filename');
+      
+      // 生成安全的本地文件名
+      final safeFilename = _getSafeFileName(filename);
+      final localFile = File('$saveDir/$safeFilename');
 
       setState(() {
         _currentOperation = '正在下载: $filename (${i + 1} / $total)';
@@ -387,9 +447,15 @@ class _SftpPageState extends State<SftpPage> {
       dynamic remote;
 
       try {
+        // 检查远程文件是否存在
         final stat = await _sftpClient.stat(remotePath);
         final int fileSize = (stat.size ?? 0).toInt();
-        num downloadedBytes = 0;
+        
+        // 检查文件大小是否有效
+        if (fileSize <= 0) {
+          debugPrint('文件大小为0或无效: $filename');
+          continue;
+        }
 
         remote = await _sftpClient.open(remotePath);
         _currentDownloadFile = remote;
@@ -403,15 +469,18 @@ class _SftpPageState extends State<SftpPage> {
           final bytesToRead = fileSize - offset > chunkSize ? chunkSize : fileSize - offset;
           final chunk = await remote.readBytes(offset: offset, length: bytesToRead);
           
-          if (chunk.isEmpty) break;
+          // 检查读取的数据是否为空
+          if (chunk.isEmpty) {
+            debugPrint('读取到空数据块，文件可能已损坏: $filename');
+            break;
+          }
           
           sink.add(chunk);
           offset += chunk.length;
-          downloadedBytes = offset;
 
           if (mounted) {
             setState(() {
-              _downloadProgress = fileSize > 0 ? (downloadedBytes / fileSize) : 0.0;
+              _downloadProgress = fileSize > 0 ? (offset / fileSize) : 0.0;
             });
           }
         }
@@ -424,11 +493,22 @@ class _SftpPageState extends State<SftpPage> {
         remote = null;
         _currentDownloadFile = null;
 
-        if (!_cancelOperation) successCount++;
+        // 验证下载的文件大小
+        final downloadedFile = File('$saveDir/$safeFilename');
+        if (await downloadedFile.exists()) {
+          final downloadedSize = await downloadedFile.length();
+          if (downloadedSize == fileSize) {
+            if (!_cancelOperation) successCount++;
+          } else {
+            debugPrint('文件大小不匹配: $filename (期望: $fileSize, 实际: $downloadedSize)');
+            await downloadedFile.delete(); // 删除不完整的文件
+          }
+        }
 
       } catch (e) {
         debugPrint('下载失败: $e');
         
+        // 清理资源
         try {
           await sink?.close();
         } catch (_) {}
@@ -439,13 +519,12 @@ class _SftpPageState extends State<SftpPage> {
         
         _currentDownloadFile = null;
 
-        await Future.delayed(const Duration(milliseconds: 100));
-        
+        // 删除可能已创建的不完整文件
         if (await localFile.exists()) {
           try {
             await localFile.delete();
           } catch (deleteError) {
-            debugPrint('删除本地存在的文件失败: $deleteError');
+            debugPrint('删除本地不完整文件失败: $deleteError');
           }
         }
       }
@@ -468,6 +547,11 @@ class _SftpPageState extends State<SftpPage> {
     _downloadProgress = 0;
     _currentDownloadFile = null;
     _currentOperation = '';
+  }
+
+  String _getSafeFileName(String filename) {
+    // 替换可能引起问题的字符
+    return filename.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_');
   }
 
   Future<void> _cancelCurrentOperation() async {
@@ -1213,14 +1297,6 @@ class _SftpPageState extends State<SftpPage> {
     super.dispose();
   }
 
-  Future<String?> _getDownloadPath(String fileName) async {
-    final result = await FilePicker.platform.saveFile(
-      dialogTitle: '选择保存位置',
-      fileName: fileName,
-    );
-
-    return result;
-  }
 
   @override
   Widget build(BuildContext context) {

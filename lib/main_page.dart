@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'manage_connections_page.dart';
 import 'manage_credentials_page.dart';
@@ -43,20 +45,6 @@ class _MainPageState extends State<MainPage> {
         SnackBar(
           content: Text('读取最近连接失败：$e'),
           backgroundColor: Colors.red 
-        ),
-      );
-    }
-  }
-
-  Future<void> _addToRecentConnections(ConnectionInfo connection) async {
-    try {
-      await _storageService.addRecentConnection(connection);
-      _loadRecentConnections();
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('保存到最近连接失败：$e'),
-          backgroundColor: Colors.red
         ),
       );
     }
@@ -224,7 +212,7 @@ class _MainPageState extends State<MainPage> {
                                 itemBuilder: (context, index) {
                                   final connection = _recentConnections[index];
                                   return Container(
-                                    height: 80, 
+                                    height: 100, 
                                     margin: const EdgeInsets.only(bottom: 16), 
                                     decoration: BoxDecoration(
                                       border: Border.all(
@@ -315,7 +303,7 @@ class _MainPageState extends State<MainPage> {
       ),
       contentPadding: const EdgeInsets.symmetric(
         horizontal: 16,
-        vertical: 8,
+        vertical: 16,
       ),
       onTap: () {
         _connectTo(connection);
@@ -372,141 +360,130 @@ class _MainPageState extends State<MainPage> {
     }
   }
 
-  void _connectTo(ConnectionInfo connection) async {
-    if (_isConnecting) return;
-    
-    setState(() {
-      _isConnecting = true;
-    });
+void _connectTo(ConnectionInfo connection) async {
+  if (_isConnecting) return;
+  
+  setState(() {
+    _isConnecting = true;
+    _connectingConnection = connection;
+  });
 
+  // 使用延迟来确保UI先更新
+  await Future.delayed(const Duration(milliseconds: 50));
+
+  try {
+    // 在后台执行连接操作
+    await _performConnection(connection);
+  } catch (e) {
+    _handleConnectionError(connection, e.toString());
+  } finally {
+    if (mounted) {
+      setState(() {
+        _isConnecting = false;
+        _connectingConnection = null;
+      });
+    }
+  }
+}
+
+Future<void> _performConnection(ConnectionInfo connection) async {
+  // 显示加载对话框
+  if (mounted) {
     showDialog(
       context: context,
       barrierDismissible: false,
-    
       builder: (BuildContext context) {
         return const AlertDialog(
           backgroundColor: Colors.transparent,
+          elevation: 0,
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               CircularProgressIndicator(),
               SizedBox(height: 16),
-              Text('正在连接...'),
+              Text('正在测试连接...'),
             ],
           ),
         );
       },
     );
+  }
 
-    try {
-      final storageService = StorageService();
-      final sshService = SshService();
+  try {
+    final storageService = StorageService();
+    final sshService = SshService();
+    
+    final credentials = await storageService.getCredentials();
+    final credential = credentials.firstWhere(
+      (c) => c.id == connection.credentialId,
+      orElse: () => throw Exception('找不到认证凭证'),
+    );
+
+    // 连接操作
+    await sshService.connect(connection, credential)
+        .timeout(const Duration(seconds: 3), onTimeout: () {
+      throw TimeoutException('连接超时，请检查网络或主机是否可达');
+    });
       
-      final credentials = await storageService.getCredentials();
-      final credential = credentials.firstWhere(
-        (c) => c.id == connection.credentialId,
-        orElse: () => throw Exception('找不到认证凭证'),
-      );
+    // 添加到最近连接（不等待完成）
+    unawaited (storageService.addRecentConnection(connection));
 
-      await sshService.connect(connection, credential);
-      await storageService.addRecentConnection(connection);
-
-      if (mounted) {
-        Navigator.of(context).pop();
-      }
-
-      if (mounted) {
-        if (connection.type == ConnectionType.sftp) {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (context) => SftpPage(
-                connection: connection,
-                credential: credential,
-              ),
+    if (mounted) {
+      Navigator.of(context).pop(); // 关闭加载对话框
+      
+      // 导航到新页面
+      if (connection.type == ConnectionType.sftp) {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => SftpPage(
+              connection: connection,
+              credential: credential,
             ),
-          );
-        } else {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (context) => TerminalPage(
-                connection: connection,
-                credential: credential,
-              ),
+          ),
+        );
+      } else {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => TerminalPage(
+              connection: connection,
+              credential: credential,
             ),
-          );
-        }
-      }
-
-    } catch (e) {
-      // 关闭加载对话框
-      if (mounted) {
-        Navigator.of(context).pop(); // 关闭加载对话框
-      }
-
-      if (mounted) {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('连接失败'),
-            content: Text(e.toString()),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('确定'),
-              ),
-            ],
           ),
         );
       }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isConnecting = false;
-        });
-      }
     }
+  } catch (e) {
+    if (mounted) {
+      Navigator.of(context).pop(); // 关闭加载对话框
+    }
+    rethrow;
   }
+}
 
-  void _showConnectionError(ConnectionInfo connection, String error) {
-    showDialog(
-      context: context, 
-      builder: (context) => AlertDialog(
-        title: const Text('连接失败'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('连接到 ${connection.name}时发生错误：'),
-            const SizedBox(height: 8),
-            Text(
-              error,
-              style: const TextStyle(color: Colors.red),
-            )
-          ],
+void _handleConnectionError(ConnectionInfo connection, String error) {
+  if (!mounted) return;
+  
+  showDialog(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('连接失败'),
+      content: Text(error),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('确定'),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('取消'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              _connectTo(connection);
-            },
-            child: const Text('重试'),
-          ),
-        ],
-      ),
-    );
-  }
+      ],
+    ),
+  );
+}
 
   List<Widget> _buildButtons(
     BuildContext context, 
     bool showSubtitle, 
     double screenHeight,
   ) {
-    const double buttonHeight = 80;
+    const double buttonHeight = 100;
     
     Widget buildButton({
       required VoidCallback onPressed,
@@ -514,32 +491,38 @@ class _MainPageState extends State<MainPage> {
       required String subtitle,
     }) {
       final buttonChild = showSubtitle 
-          ? Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
+          ? Padding(
+              padding: const EdgeInsets.only(left: 8.0), // 添加16px左边距
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  subtitle,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey,
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             )
-          : Text(
-              title,
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
+          : Padding(
+              padding: const EdgeInsets.only(left: 8.0), // 添加16px左边距
+              child: Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             );
       
@@ -549,7 +532,7 @@ class _MainPageState extends State<MainPage> {
         child: OutlinedButton(
           onPressed: onPressed,
           style: OutlinedButton.styleFrom(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(14),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
             ),
@@ -575,6 +558,7 @@ class _MainPageState extends State<MainPage> {
         },
         title: '快速连接',
         subtitle: '输入地址和凭证快速建立连接',
+        
       ),
       const SizedBox(height: 16),
       

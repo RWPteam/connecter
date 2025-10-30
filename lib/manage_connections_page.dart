@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'terminal_page.dart';
 // ignore: unused_import
@@ -79,7 +81,6 @@ class _ManageConnectionsPageState extends State<ManageConnectionsPage> {
     showDialog(
       context: context,
       barrierDismissible: false,
-    
       builder: (BuildContext context) {
         return const AlertDialog(
           backgroundColor: Colors.transparent,
@@ -88,7 +89,7 @@ class _ManageConnectionsPageState extends State<ManageConnectionsPage> {
             children: [
               CircularProgressIndicator(),
               SizedBox(height: 16),
-              Text('正在连接...'),
+              Text('正在测试连接...'),
             ],
           ),
         );
@@ -105,8 +106,13 @@ class _ManageConnectionsPageState extends State<ManageConnectionsPage> {
         orElse: () => throw Exception('找不到认证凭证'),
       );
 
-      await sshService.connect(connection, credential);
-      await storageService.addRecentConnection(connection);
+      // 设置3秒超时
+      await sshService.connect(connection, credential)
+          .timeout(const Duration(seconds: 3), onTimeout: () {
+        throw TimeoutException('连接超时，请检查网络或主机是否可达');
+      });
+      
+      unawaited(storageService.addRecentConnection(connection));
 
       if (mounted) {
         Navigator.of(context).pop();
@@ -134,6 +140,24 @@ class _ManageConnectionsPageState extends State<ManageConnectionsPage> {
         }
       }
 
+    } on TimeoutException catch (e) {
+      // 处理超时异常
+      if (mounted) {
+        Navigator.of(context).pop(); // 关闭加载对话框
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('连接失败'),
+            content: Text(e.message ?? '连接超时'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('确定'),
+              ),
+            ],
+          ),
+        );
+      }
     } catch (e) {
       // 关闭加载对话框
       if (mounted) {
