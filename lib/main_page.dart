@@ -142,17 +142,10 @@ class _MainPageState extends State<MainPage> {
   }
   
   Future<void> _requestPermissions() async {
-    // 请求必要的权限
     await Permission.storage.request();
     await Permission.manageExternalStorage.request();
-    
-    // 检查权限状态
-    if (await Permission.storage.isGranted) {
-      print('Storage permission granted');
-    } else {
-      print('Storage permission denied');
-    }
   }
+    
   Future<void> _loadRecentConnections() async {
     try {
       final recentConnections = await _storageService.getRecentConnections();
