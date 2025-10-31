@@ -37,18 +37,15 @@ class _TerminalPageState extends State<TerminalPage> implements TextInputClient 
   StreamSubscription<List<int>>? _stdoutSubscription;
   StreamSubscription<List<int>>? _stderrSubscription;
 
-  // 关键点：只为 KeyboardListener 使用一个独立的 FocusNode（用于物理键盘事件）
   final FocusNode _keyboardFocusNode = FocusNode();
   final FocusNode _inputFocusNode = FocusNode();
   TextInputConnection? _textInputConnection;
   TextEditingValue _currentEditingValue = TextEditingValue.empty;
 
-  // 字体
   double _fontSize = 14.0;
   OverlayEntry? _fontSliderOverlay;
   Timer? _hideSliderTimer;
   
-  // 写缓冲
   final StringBuffer _writeBuffer = StringBuffer();
   Timer? _flushTimer;
   final Duration _flushInterval = const Duration(milliseconds: 20);
@@ -56,8 +53,14 @@ class _TerminalPageState extends State<TerminalPage> implements TextInputClient 
   DateTime? _lastSendAt;
   String? _lastSentChunk;
 
-  // 滑块是否显示
   bool _isSliderVisible = false;
+
+  // 修改：添加修饰键状态管理
+  bool _isCtrlPressed = false;
+  bool _isAltPressed = false;
+  Timer? _modifierReleaseTimer;
+  
+  // 修改：添加标志来跟踪是否应该应用修饰键
 
   @override
   void initState() {
@@ -76,14 +79,12 @@ class _TerminalPageState extends State<TerminalPage> implements TextInputClient 
       } else if (_fontSize == 10.0 && isWideScreen) {
         _fontSize = 14.0;
       }
-      // 初始把焦点给 keyboard listener（方便物理键盘立刻可用）
       Future.delayed(const Duration(milliseconds: 120), () {
         if (mounted) FocusScope.of(context).requestFocus(_keyboardFocusNode);
       });
       _connectToHost();
     });
 
-    // 监听焦点变化，控制透明输入框显示
     _inputFocusNode.addListener(() {
       if (_inputFocusNode.hasFocus && !_isSliderVisible) {
         _attachTextInput();
@@ -197,9 +198,6 @@ class _TerminalPageState extends State<TerminalPage> implements TextInputClient 
     }
   }
 
-  //
-  // TextInputClient
-  //
   @override
   TextEditingValue get currentTextEditingValue => _currentEditingValue;
 
@@ -211,33 +209,69 @@ class _TerminalPageState extends State<TerminalPage> implements TextInputClient 
 
     if (cur == prev) return;
 
-    int prefix = 0;
-    final minLen = cur.length < prev.length ? cur.length : prev.length;
-    while (prefix < minLen && cur.codeUnitAt(prefix) == prev.codeUnitAt(prefix)) {
-      prefix++;
-    }
+    // === 截获修饰键输入并阻止其进入输入框 ===
+    if (_isCtrlPressed || _isAltPressed) {
+      String inserted = cur.replaceFirst(prev, '');
+      if (inserted.isNotEmpty) {
+        String out = inserted;
+        if (_isCtrlPressed) out = _applyCtrlModifier(out);
+        if (_isAltPressed) out = _applyAltModifier(out);
 
-    int suffixPrev = prev.length;
-    int suffixCur = cur.length;
-    while (suffixPrev > prefix &&
-        suffixCur > prefix &&
-        prev.codeUnitAt(suffixPrev - 1) == cur.codeUnitAt(suffixCur - 1)) {
-      suffixPrev--;
-      suffixCur--;
-    }
+        _bufferWrite(out);
 
-    final deleted = prev.substring(prefix, suffixPrev);
-    final inserted = cur.substring(prefix, suffixCur);
+        // 清空输入框避免字符回显到 Terminal
+        _currentEditingValue = const TextEditingValue(text: '');
+        _textInputConnection?.setEditingState(_currentEditingValue);
 
-    if (deleted.isNotEmpty) {
-      for (final _ in deleted.runes) {
-        _bufferWrite('\x08');
+        _releaseModifiers();
+        return;
       }
     }
+  }
+  String _applyCtrlModifier(String text) {
+    if (text.isEmpty) return text;
+    final upper = text.toUpperCase();
+    final code = upper.codeUnitAt(0);
 
-    if (inserted.isNotEmpty) {
-      _bufferWrite(inserted);
+    if (code >= 65 && code <= 90) {
+      return String.fromCharCode(code - 64); // Ctrl+A = 1 … Ctrl+Z = 26
     }
+
+    return text;
+  }
+
+  // 修改：改进的 Alt 修饰符应用
+  String _applyAltModifier(String text) {
+    if (text.isEmpty) return text;
+    // Alt + 字符：发送 ESC 前缀
+    return '\x1B$text';
+  }
+
+  // 修改：改进的修饰键按下处理
+  void _pressModifier(String type) {
+    setState(() {
+      if (type == 'ctrl') {
+        _isCtrlPressed = !_isCtrlPressed;
+        _isAltPressed = false;
+      } else {
+        _isAltPressed = !_isAltPressed;
+        _isCtrlPressed = false;
+      }
+    });
+
+    if (_isCtrlPressed || _isAltPressed) {
+    } else {
+    }
+  }
+
+  void _releaseModifiers() {
+    if (!_isCtrlPressed && !_isAltPressed) return;
+
+    setState(() {
+      _isCtrlPressed = false;
+      _isAltPressed = false;
+    });
+    _modifierReleaseTimer?.cancel();
   }
 
   @override
@@ -248,12 +282,10 @@ class _TerminalPageState extends State<TerminalPage> implements TextInputClient 
         action == TextInputAction.send ||
         action == TextInputAction.search ||
         action == TextInputAction.unspecified) {
-      // 直接发送回车，不重置编辑值
       _bufferWrite('\r');
       debugPrint('performAction: action = $action');
     }
   }
-
 
   @override
   void updateFloatingCursor(RawFloatingCursorPoint point) {}
@@ -316,8 +348,6 @@ class _TerminalPageState extends State<TerminalPage> implements TextInputClient 
     _textInputConnection!.setEditingState(_currentEditingValue);
     _textInputConnection!.show();
 
-    // Android sometimes won't pop the soft keyboard unless手动调用 textInput.show
-    // 调用两次也安全（是冗余的保证），并且在非 Android 平台也不会有副作用
     if (defaultTargetPlatform == TargetPlatform.android) {
       SystemChannels.textInput.invokeMethod('TextInput.show');
     }
@@ -350,6 +380,13 @@ class _TerminalPageState extends State<TerminalPage> implements TextInputClient 
 
   void _sendCtrlC() => _bufferWrite('\x03');
   void _sendCtrlD() => _bufferWrite('\x04');
+  void _sendTab() => terminal.keyInput(TerminalKey.tab);
+  void _sendEscape() => _bufferWrite('\x1B');
+  void _sendDelete() => _bufferWrite('\x7F');
+  void _sendUpArrow() => _bufferWrite('\x1B[A');
+  void _sendDownArrow() => _bufferWrite('\x1B[B');
+  void _sendLeftArrow() => _bufferWrite('\x1B[D');
+  void _sendRightArrow() => _bufferWrite('\x1B[C');
 
   @override
   void dispose() {
@@ -362,21 +399,16 @@ class _TerminalPageState extends State<TerminalPage> implements TextInputClient 
     _inputFocusNode.dispose();
     _hideSliderTimer?.cancel();
     _flushTimer?.cancel();
+    _modifierReleaseTimer?.cancel();
     try { _fontSliderOverlay?.remove(); } catch (_) {}
     super.dispose();
   }
 
   void _onTerminalTap() {
-    // 请求焦点到输入节点以激活软键盘
     if (!_isSliderVisible) {
-      FocusScope.of(context).requestFocus(_inputFocusNode);
-      
-      // 强制显示软键盘
-      if (defaultTargetPlatform == TargetPlatform.android) {
-        SystemChannels.textInput.invokeMethod('TextInput.show');
-      }
+      FocusScope.of(context).requestFocus(_keyboardFocusNode);
+      SystemChannels.textInput.invokeMethod('TextInput.show');
     }
-
     _hideFontSlider();
   }
 
@@ -424,7 +456,6 @@ class _TerminalPageState extends State<TerminalPage> implements TextInputClient 
         Navigator.of(context).pop();
         break;
     }
-    // 选择菜单项后，如果当前有输入焦点，移除焦点以关闭输入法
     if (_inputFocusNode.hasFocus) {
       FocusScope.of(context).requestFocus(_keyboardFocusNode);
     }
@@ -453,7 +484,6 @@ class _TerminalPageState extends State<TerminalPage> implements TextInputClient 
       ],
     ).then((value) {
       if (value != null) _handleCommand(value);
-      // 选择命令后，如果当前有输入焦点，移除焦点以关闭输入法
       if (_inputFocusNode.hasFocus) {
         FocusScope.of(context).requestFocus(_keyboardFocusNode);
       }
@@ -466,7 +496,7 @@ class _TerminalPageState extends State<TerminalPage> implements TextInputClient 
         _bufferWrite('\r');
         break;
       case 'tab':
-        _bufferWrite('\t');
+        _sendTab();
         break;
       case 'backspace':
         _bufferWrite('\x08');
@@ -481,7 +511,6 @@ class _TerminalPageState extends State<TerminalPage> implements TextInputClient 
   }
 
   void _showFontSlider() {
-    // 如果滑块已经显示，则不重复显示
     if (_isSliderVisible) return;
     
     _isSliderVisible = true;
@@ -500,18 +529,16 @@ class _TerminalPageState extends State<TerminalPage> implements TextInputClient 
                     child: Container(color: Colors.transparent),
                   ),
                 ),
-                // 使用 Center 来垂直居中，并降低透明度
                 Positioned.fill(
                   child: Center(
                     child: GestureDetector(
-                      onTap: () {}, // 阻止点击滑块区域关闭
+                      onTap: () {},
                       child: Material(
                         elevation: 8,
                         borderRadius: BorderRadius.circular(16),
-                        // 降低透明度：从 0.95 降到 0.7
                         color: Colors.grey[900]!.withOpacity(0.7),
                         child: Container(
-                          width: MediaQuery.of(context).size.width * 0.8, // 限制宽度
+                          width: MediaQuery.of(context).size.width * 0.8,
                           padding: const EdgeInsets.all(16),
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
@@ -565,12 +592,12 @@ class _TerminalPageState extends State<TerminalPage> implements TextInputClient 
       FocusScope.of(context).requestFocus(_keyboardFocusNode);
     }
   }
+
   void _hideFontSlider() {
     _isSliderVisible = false;
     _hideSliderTimer?.cancel();
     try { _fontSliderOverlay?.remove(); } catch (_) {}
     _fontSliderOverlay = null;
-    // 关闭字体滑块后，如果之前有输入焦点，重新请求焦点到输入框
     if (_inputFocusNode.hasFocus == false && mounted) {
       FocusScope.of(context).requestFocus(_inputFocusNode);
     }
@@ -579,6 +606,157 @@ class _TerminalPageState extends State<TerminalPage> implements TextInputClient 
   void _resetHideSliderTimer() {
     _hideSliderTimer?.cancel();
     _hideSliderTimer = Timer(const Duration(seconds: 3), _hideFontSlider);
+  }
+
+  Widget _buildQuickMenuBar() {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isWideScreen = screenWidth >= 400;
+    
+    return Container(
+      height: 44,
+      decoration: BoxDecoration(
+        color: Colors.grey[900],
+        border: Border(
+          top: BorderSide(color: Colors.grey[700]!, width: 0.5),
+        ),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          _buildQuickButton('Tab', _sendTab, isWideScreen, false, false),
+          _buildDivider(),
+          _buildQuickButton('Alt', () => _pressModifier('alt'), isWideScreen, false, _isAltPressed),
+          _buildDivider(),
+          _buildQuickButton('Ctrl', () => _pressModifier('ctrl'), isWideScreen, false, _isCtrlPressed),
+          _buildDivider(),
+          _buildQuickButton('ESC', _sendEscape, isWideScreen, false, false),
+          _buildDivider(),
+          _buildQuickButton('Del', _sendDelete, isWideScreen, false, false),
+          _buildDivider(),
+          _buildQuickButton('←', _sendLeftArrow, isWideScreen, false, false),
+          _buildDivider(),
+          _buildVerticalArrowButton(isWideScreen),
+          _buildDivider(),
+          _buildQuickButton('→', _sendRightArrow, isWideScreen, false, false),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDivider() {
+    return Container(
+      width: 0.5,
+      height: 20,
+      color: Colors.grey[600],
+    );
+  }
+
+  Widget _buildVerticalArrowButton(bool isWideScreen) {
+    return Expanded(
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 0),
+        height: 36,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Expanded(
+              child: SizedBox(
+                width: double.infinity,
+                child: TextButton(
+                  onPressed: _sendUpArrow,
+                  style: TextButton.styleFrom(
+                    backgroundColor: Colors.transparent,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.all(2),
+                    minimumSize: const Size(0, 0),
+                    shape: const RoundedRectangleBorder(
+                      borderRadius: BorderRadius.only(
+                        topLeft: Radius.circular(0),
+                        topRight: Radius.circular(0),
+                      ),
+                    ),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: Text(
+                    '↑',
+                    style: TextStyle(
+                      fontSize: isWideScreen ? 12 : 10,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+            ),
+            Container(
+              width: double.infinity,
+              height: 0.5,
+              color: Colors.grey[600],
+            ),
+            Expanded(
+              child: SizedBox(
+                width: double.infinity,
+                child: TextButton(
+                  onPressed: _sendDownArrow,
+                  style: TextButton.styleFrom(
+                    backgroundColor: Colors.transparent,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.all(2),
+                    minimumSize: const Size(0, 0),
+                    shape: const RoundedRectangleBorder(
+                      borderRadius: BorderRadius.only(
+                        bottomLeft: Radius.circular(0),
+                        bottomRight: Radius.circular(0),
+                      ),
+                    ),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: Text(
+                    '↓',
+                    style: TextStyle(
+                      fontSize: isWideScreen ? 12 : 10,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildQuickButton(String label, VoidCallback onPressed, bool isWideScreen, bool isVertical, bool isActive) {
+    return Expanded(
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 0),
+        child: TextButton(
+          onPressed: onPressed,
+          style: TextButton.styleFrom(
+            backgroundColor: isActive ? Colors.blue.withOpacity(0.3) : Colors.transparent,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+            minimumSize: const Size(0, 0),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(0),
+            ),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: isWideScreen ? 12 : 10,
+              fontWeight: FontWeight.w500,
+            ),
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -621,11 +799,35 @@ class _TerminalPageState extends State<TerminalPage> implements TextInputClient 
           Expanded(
             child: Stack(
               children: [
-                // TerminalView 作为背景
                 KeyboardListener(
                   focusNode: _keyboardFocusNode,
                   onKeyEvent: (KeyEvent event) {
                     if (event is KeyDownEvent || event is KeyRepeatEvent) {
+                      // 处理特殊功能键
+                      if (event.logicalKey == LogicalKeyboardKey.tab) {
+                        terminal.keyInput(TerminalKey.tab);
+                        return;
+                      } else if (event.logicalKey == LogicalKeyboardKey.escape) {
+                        _sendEscape();
+                        return;
+                      } else if (event.logicalKey == LogicalKeyboardKey.delete) {
+                        _sendDelete();
+                        return;
+                      } else if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+                        _sendUpArrow();
+                        return;
+                      } else if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+                        _sendDownArrow();
+                        return;
+                      } else if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+                        _sendLeftArrow();
+                        return;
+                      } else if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+                        _sendRightArrow();
+                        return;
+                      }
+
+                      // 处理 Ctrl 组合键
                       if (HardwareKeyboard.instance.isControlPressed) {
                         final label = event.logicalKey.keyLabel;
                         if (label == '=') {
@@ -638,22 +840,12 @@ class _TerminalPageState extends State<TerminalPage> implements TextInputClient 
                         return;
                       }
 
+                      // 处理其他特殊按键
                       if (event.logicalKey == LogicalKeyboardKey.enter) {
                         _bufferWrite('\r');
                         return;
-                      }
-                      if (event.logicalKey == LogicalKeyboardKey.tab) {
-                        _bufferWrite('\t');
-                        return;
-                      }
-                      if (event.logicalKey == LogicalKeyboardKey.backspace) {
+                      } else if (event.logicalKey == LogicalKeyboardKey.backspace) {
                         _bufferWrite('\x08');
-                        return;
-                      }
-
-                      final ch = event.character;
-                      if (ch != null && ch.isNotEmpty) {
-                        _bufferWrite(ch);
                         return;
                       }
                     }
@@ -681,62 +873,22 @@ class _TerminalPageState extends State<TerminalPage> implements TextInputClient 
                       backgroundOpacity: 1.0,
                       textStyle: TerminalStyle(fontSize: _fontSize, fontFamily: 'Monospace'),
                       autoResize: true,
-                      readOnly: false, // 允许交互
-                      autofocus: false,
-                    ),
-                  ),
-                ),
-                // 完全透明的覆盖层，用于接收输入焦点
-                Positioned.fill(
-                  child: IgnorePointer(
-                    ignoring: _isSliderVisible, // 当滑块显示时，忽略输入框的点击事件
-                    child: TextField(
-                      focusNode: _inputFocusNode,
-                      controller: TextEditingController.fromValue(_currentEditingValue),
-                      onChanged: (text) {
-                        final newValue = TextEditingValue(
-                          text: text,
-                          selection: TextSelection.fromPosition(
-                            TextPosition(offset: text.length),
-                          ),
-                        );
-                        updateEditingValue(newValue);
-                      },
-                      onSubmitted: (text) {
-                        // 在多行文本框中，回车不提交，而是换行
-                        _bufferWrite('\n');
-                      },
-                      keyboardType: TextInputType.multiline,
-                      textInputAction: TextInputAction.newline,
-                      maxLines: null, // 支持多行
-                      autocorrect: false,
-                      enableSuggestions: false,
-                      style: const TextStyle(
-                        color: Colors.transparent,
-                        fontSize: 0.1,
-                      ),
-                      cursorColor: Colors.transparent,
-                      decoration: const InputDecoration(
-                        border: InputBorder.none,
-                        fillColor: Colors.transparent,
-                        filled: true,
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                      enableInteractiveSelection: false,
-                      showCursor: false,
-                      contextMenuBuilder: (context, editableTextState) =>
-                          const SizedBox.shrink(),
+                      readOnly: false,
+                      autofocus: true,
                     ),
                   ),
                 ),
               ],
             ),
           ),
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+            height: 44,
+            child: _buildQuickMenuBar(),
+          ),
         ],
       ),
     );
   }
 }
-
-
-

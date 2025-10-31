@@ -35,9 +35,12 @@ class _MainPageState extends State<MainPage> {
     _loadRecentConnections();
   }
   
+  
+
   Future<void> _requestPermissions() async {
     await Permission.storage.request();
-    await Permission.manageExternalStorage.request();
+//    await Permission.manageExternalStorage.request();
+    await Permission.backgroundRefresh.request();
   }
     
   Future<void> _loadRecentConnections() async {
@@ -308,7 +311,7 @@ class _MainPageState extends State<MainPage> {
     }
   }
 
-// 窄屏模式下的小型连接项（居中显示）
+// 窄屏模式下的小型连接项
   Widget _buildSmallConnectionTile(BuildContext context, ConnectionInfo connection) {
     final isConnectingThis = _isConnecting && _connectingConnection?.id == connection.id;
     
