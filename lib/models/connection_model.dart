@@ -8,6 +8,7 @@ class ConnectionInfo {
   bool remember;
   bool isPinned;
   DateTime lastUsed;
+  String? sftpPath; // 新增：SFTP默认访问路径
 
   ConnectionInfo({
     required this.id,
@@ -18,6 +19,7 @@ class ConnectionInfo {
     required this.type,
     required this.remember,
     this.isPinned = false,
+    this.sftpPath, 
     DateTime? lastUsed,
   }) : lastUsed = lastUsed ?? DateTime.now();
 
@@ -32,20 +34,21 @@ class ConnectionInfo {
       'remember': remember,
       'isPinned': isPinned,
       'lastUsed': lastUsed.toIso8601String(),
+      'sftpPath': sftpPath, 
     };
   }
 
   factory ConnectionInfo.fromJson(Map<String, dynamic> json) {
-  ConnectionType type;
-  try {
-    final typeString = json['type'] as String;
-    type = ConnectionType.values.firstWhere(
-      (e) => e.toString() == typeString,
-      orElse: () => ConnectionType.ssh, 
-    );
-  } catch (e) {
-    type = ConnectionType.ssh;
-  }
+    ConnectionType type;
+    try {
+      final typeString = json['type'] as String;
+      type = ConnectionType.values.firstWhere(
+        (e) => e.toString() == typeString,
+        orElse: () => ConnectionType.ssh, 
+      );
+    } catch (e) {
+      type = ConnectionType.ssh;
+    }
     return ConnectionInfo(
       id: json['id'],
       name: json['name'],
@@ -55,6 +58,7 @@ class ConnectionInfo {
       type: type,
       remember: json['remember'],
       isPinned: json['isPinned'] ?? false,
+      sftpPath: json['sftpPath'], // 新增：反序列化SFTP路径
       lastUsed: json['lastUsed'] != null
         ? DateTime.parse(json['lastUsed'])
         : DateTime.now(),
@@ -77,3 +81,6 @@ extension ConnectionTypeExtension on ConnectionType {
     }
   }
 }
+
+
+

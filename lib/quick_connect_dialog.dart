@@ -27,6 +27,7 @@ class _QuickConnectDialogState extends State<QuickConnectDialog> {
   final _nameController = TextEditingController();
   final _hostController = TextEditingController();
   final _portController = TextEditingController(text: '22');
+  final _sftpPathController = TextEditingController();
   final _storageService = StorageService();
   final _sshService = SshService();
 
@@ -49,8 +50,10 @@ class _QuickConnectDialogState extends State<QuickConnectDialog> {
       _portController.text = widget.connection!.port.toString();
       _selectedType = widget.connection!.type;
       _rememberConnection = widget.connection!.remember;
+      _sftpPathController.text = widget.connection!.sftpPath ?? '/'; // 从连接信息中获取SFTP路径
     } else {
       _nameController.text = '新连接';
+      _sftpPathController.text = '/'; // 默认路径
       _isNameChanged = false;
     }
     
@@ -135,6 +138,7 @@ class _QuickConnectDialogState extends State<QuickConnectDialog> {
         credentialId: _selectedCredential!.id,
         type: _selectedType,
         remember: _rememberConnection,
+        sftpPath: _selectedType == ConnectionType.sftp ? _sftpPathController.text : null, // 保存SFTP路径
       );
 
       await _sshService.connect(connection, _selectedCredential!);
@@ -201,6 +205,7 @@ class _QuickConnectDialogState extends State<QuickConnectDialog> {
         credentialId: _selectedCredential!.id,
         type: _selectedType,
         remember: true,
+        sftpPath: _selectedType == ConnectionType.sftp ? _sftpPathController.text : null, // 保存SFTP路径
       );
 
       await _storageService.saveConnection(connection);
@@ -249,6 +254,7 @@ class _QuickConnectDialogState extends State<QuickConnectDialog> {
         credentialId: _selectedCredential!.id,
         type: _selectedType,
         remember: true,
+        sftpPath: _selectedType == ConnectionType.sftp ? _sftpPathController.text : null, // 保存SFTP路径
       );
 
       await _storageService.saveConnection(connection);
@@ -439,6 +445,36 @@ class _QuickConnectDialogState extends State<QuickConnectDialog> {
               ),
               const SizedBox(height: 16),
               
+              // SFTP路径设置 - 仅在选择SFTP类型时显示
+              if (_selectedType == ConnectionType.sftp)
+                Column(
+                  children: [
+                    TextFormField(
+                      controller: _sftpPathController,
+                      decoration: const InputDecoration(
+                        labelText: 'SFTP默认访问目录',
+                        hintText: '例如：/home/username',
+                        prefixIcon: Icon(Icons.folder),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return '请输入SFTP默认访问目录';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      '此目录将覆盖全局SFTP默认路径设置',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                ),
+              
               if (!widget.isNewConnection && !_isEditing)
                 CheckboxListTile(
                   title: const Text('记住该连接'),
@@ -481,3 +517,6 @@ class _QuickConnectDialogState extends State<QuickConnectDialog> {
     );
   }
 }
+
+
+
