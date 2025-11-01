@@ -222,7 +222,7 @@ class _SettingsPageState extends State<SettingsPage> {
                             Platform.isWindows 
                                 ? 'Windows平台不支持目录选择功能，如需自定义路径请手动输入' 
                                 : Platform.isAndroid 
-                                    ? '留空将使用 Downloads 目录' 
+                                    ? '留空将在每次下载时询问，当权限不完整则会保存到Android/data中' 
                                     : '无需修改',
                             style: const TextStyle(
                               fontSize: 12,

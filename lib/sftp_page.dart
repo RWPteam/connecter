@@ -14,6 +14,19 @@ import 'package:fluttertoast/fluttertoast.dart';
 
 enum ViewMode { list, icon }
 
+// 剪贴板项数据结构 - 移到类外部
+class ClipboardItem {
+  final String path;
+  final bool isDirectory;
+  final String name;
+
+  ClipboardItem({
+    required this.path,
+    required this.isDirectory,
+    required this.name,
+  });
+}
+
 class SftpPage extends StatefulWidget {
   final ConnectionInfo connection;
   final Credential credential;
@@ -34,8 +47,8 @@ class _SftpPageState extends State<SftpPage> {
   
   SSHClient? _sshClient;
   dynamic _sftpClient;
-  String? _clipboardFilePath;
-  bool _clipboardIsDirectory = false;
+  // 修改剪贴板为支持多个文件
+  final List<ClipboardItem> _clipboardItems = [];
   bool _clipboardIsCut = false;
   List<dynamic> _fileList = [];
   String _currentPath = '/';
@@ -161,6 +174,191 @@ class _SftpPageState extends State<SftpPage> {
     }
   }
 
+  Widget _buildSingleRowToolbar(Color iconColor, Color disabledIconColor, bool hasSelection, bool singleSelection, bool isWideScreen) {
+    return Row(
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(children: [
+              if (_currentPath != '/')
+                IconButton(
+                  icon: const Icon(Icons.arrow_back),
+                  onPressed: _goToParentDirectory,
+                  tooltip: '上级目录',
+                ) else IconButton(
+                  icon: const Icon(Icons.circle_outlined),
+                  onPressed: null,
+                  tooltip: '/',
+                ),
+              const SizedBox(width: 3),
+              _buildIconButton(Icons.upload, '上传文件', _uploadFile, iconColor),
+              const SizedBox(width: 3),
+              _buildIconButton(Icons.download, '下载文件', 
+                  hasSelection ? _downloadSelectedFiles : null, 
+                  hasSelection ? iconColor : disabledIconColor),
+              const SizedBox(width: 3),
+              _buildIconButton(Icons.delete, '删除文件', 
+                  hasSelection ? _deleteSelectedFiles : null, 
+                  hasSelection ? iconColor : disabledIconColor),
+              const SizedBox(width: 3),
+              _buildIconButton(Icons.create_new_folder, '新建文件夹', _createDirectory, iconColor),
+              const SizedBox(width: 3),
+              _buildIconButton(Icons.drive_file_rename_outline, '重命名', 
+                  singleSelection ? _renameFile : null, 
+                  singleSelection ? iconColor : disabledIconColor),
+              const SizedBox(width: 3),
+              _buildIconButton(
+                  _isMultiSelectMode ? Icons.check_box_outline_blank : Icons.check_box,
+                  _isMultiSelectMode ? '取消选择' : '全选', _selectAllFiles, iconColor),
+              _buildIconButton(Icons.copy, '复制', 
+                  hasSelection ? _copySelected : null, 
+                  hasSelection ? iconColor : disabledIconColor),
+              const SizedBox(width: 3),
+              _buildIconButton(Icons.cut, '剪切', 
+                  hasSelection ? _cutSelected : null, 
+                  hasSelection ? iconColor : disabledIconColor),
+              const SizedBox(width: 3),
+              _buildIconButton(Icons.paste, '粘贴', 
+                  _clipboardItems.isNotEmpty ? _pasteFile : null, 
+                  _clipboardItems.isNotEmpty ? iconColor : disabledIconColor),
+
+            ]),
+          ),
+        ),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(children: [
+            if (isWideScreen)
+              TextButton.icon(
+                icon: Icon(Icons.info, color: singleSelection ? iconColor : disabledIconColor),
+                label: Text('属性', style: TextStyle(color: singleSelection ? iconColor : disabledIconColor)),
+                onPressed: singleSelection ? _showFileDetails : null,
+              )
+            else
+              _buildIconButton(Icons.info, '属性', 
+                  singleSelection ? _showFileDetails : null, 
+                  singleSelection ? iconColor : disabledIconColor),
+            const SizedBox(width: 3),
+            if (isWideScreen)
+              TextButton.icon(
+                icon: Icon(Icons.view_module, color: disabledIconColor),
+                label: Text('切换视图', style: TextStyle(color: disabledIconColor)),
+                onPressed: () => setState(() => _viewMode = _viewMode == ViewMode.list ? ViewMode.icon : ViewMode.list),
+              )
+            else
+              _buildIconButton(Icons.view_module, '切换视图', 
+                  () => setState(() => _viewMode = _viewMode == ViewMode.list ? ViewMode.icon : ViewMode.list), 
+                  disabledIconColor),
+          ]),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDoubleRowToolbar(Color iconColor, Color disabledIconColor, bool hasSelection, bool singleSelection) {
+    double buttonWidth = (MediaQuery.of(context).size.width - 4) / 6;
+    
+    return Column(
+      children: [
+        SizedBox(
+          height: 40,
+          child: Row(
+            children: [
+              SizedBox(
+                width: buttonWidth,
+                child: _currentPath != '/'
+                    ? _buildIconButton(Icons.arrow_back, '上级目录', _goToParentDirectory, iconColor, iconSize: 20)
+                    : _buildIconButton(Icons.circle_outlined, '/', null, disabledIconColor, iconSize: 20),
+              ),
+              // 上传按钮
+              SizedBox(
+                width: buttonWidth,
+                child: _buildIconButton(Icons.upload, '上传', _uploadFile, iconColor, iconSize: 20),
+              ),
+              // 下载按钮
+              SizedBox(
+                width: buttonWidth,
+                child: _buildIconButton(Icons.download, '下载', 
+                    hasSelection ? _downloadSelectedFiles : null, 
+                    hasSelection ? iconColor : disabledIconColor, iconSize: 20),
+              ),
+              // 删除按钮
+              SizedBox(
+                width: buttonWidth,
+                child: _buildIconButton(Icons.delete, '删除', 
+                    hasSelection ? _deleteSelectedFiles : null, 
+                    hasSelection ? iconColor : disabledIconColor, iconSize: 20),
+              ),
+              // 新建文件夹按钮
+              SizedBox(
+                width: buttonWidth,
+                child: _buildIconButton(Icons.create_new_folder, '新建文件夹', _createDirectory, iconColor, iconSize: 20),
+              ),
+              // 全选按钮
+              SizedBox(
+                width: buttonWidth,
+                child: _buildIconButton(
+                    _isMultiSelectMode ? Icons.check_box_outline_blank : Icons.check_box,
+                    _isMultiSelectMode ? '取消全选' : '全选', _selectAllFiles, iconColor, iconSize: 20),
+              ),
+            ],
+          ),
+        ),
+        // 第二行：次要操作按钮和功能按钮
+        SizedBox(
+          height: 40,
+          child: Row(
+            children: [
+              // 复制按钮
+              SizedBox(
+                width: buttonWidth,
+                child: _buildIconButton(Icons.copy, '复制', 
+                    hasSelection ? _copySelected : null, 
+                    hasSelection ? iconColor : disabledIconColor, iconSize: 20),
+              ),
+              // 剪切按钮
+              SizedBox(
+                width: buttonWidth,
+                child: _buildIconButton(Icons.cut, '剪切', 
+                    hasSelection ? _cutSelected : null, 
+                    hasSelection ? iconColor : disabledIconColor, iconSize: 20),
+              ),
+              // 粘贴按钮
+              SizedBox(
+                width: buttonWidth,
+                child: _buildIconButton(Icons.paste, '粘贴', 
+                    _clipboardItems.isNotEmpty ? _pasteFile : null, 
+                    _clipboardItems.isNotEmpty ? iconColor : disabledIconColor, iconSize: 20),
+              ),
+              // 重命名按钮 - 替换原来的刷新按钮
+              SizedBox(
+                width: buttonWidth,
+                child: _buildIconButton(Icons.drive_file_rename_outline, '重命名', 
+                    singleSelection ? _renameFile : null, 
+                    singleSelection ? iconColor : disabledIconColor, iconSize: 20),
+              ),
+              // 属性按钮
+              SizedBox(
+                width: buttonWidth,
+                child: _buildIconButton(Icons.info, '属性', 
+                    singleSelection ? _showFileDetails : null, 
+                    singleSelection ? iconColor : disabledIconColor, iconSize: 20),
+              ),
+              // 切换视图按钮
+              SizedBox(
+                width: buttonWidth,
+                child: _buildIconButton(Icons.view_module, '切换视图', 
+                    () => setState(() => _viewMode = _viewMode == ViewMode.list ? ViewMode.icon : ViewMode.list), 
+                    iconColor, iconSize: 20),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   Future<void> _loadDirectory(String dirPath) async {
     // 在操作前检查连接状态
     if (!await _checkConnection()) return;
@@ -261,6 +459,85 @@ class _SftpPageState extends State<SftpPage> {
     });
   }
 
+  //重命名
+  Future<void> _renameFile() async {
+    if (_selectedFiles.length != 1) {
+      _showErrorDialog('重命名失败', '请选择一个文件或文件夹进行重命名');
+      return;
+    }
+
+    // 在操作前检查连接状态
+    if (!await _checkConnection()) return;
+
+    final oldName = _selectedFiles.first;
+    final oldPath = _joinPath(_currentPath, oldName);
+    
+    final textController = TextEditingController(text: oldName);
+    
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('重命名'),
+        content: TextField(
+          controller: textController,
+          decoration: const InputDecoration(
+            labelText: '新名称',
+            hintText: '输入新的文件/文件夹名称',
+          ),
+          autofocus: true,
+        ),
+        actions: [
+          OutlinedButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('取消'),
+          ),
+          OutlinedButton(
+            onPressed: () async {
+              final newName = textController.text.trim();
+              if (newName.isEmpty) {
+                _showErrorDialog('重命名失败', '名称不能为空');
+                return;
+              }
+              if (newName == oldName) {
+                Navigator.of(context).pop();
+                return;
+              }
+              Navigator.of(context).pop();
+              await _renameFileAction(oldPath, oldName, newName);
+            },
+            child: const Text('重命名'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _renameFileAction(String oldPath, String oldName, String newName) async {
+    try {
+      final newPath = _joinPath(_currentPath, newName);
+      
+      // 检查新名称是否已存在
+      try {
+        await _sftpClient.stat(newPath);
+        _showErrorDialog('重命名失败', '名称 "$newName" 已存在');
+        return;
+      } catch (e) {
+        // 文件不存在，可以继续重命名
+      }
+
+      await _sftpClient.rename(oldPath, newPath);
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('重命名成功: $oldName → $newName')),
+        );
+        _clearSelectionAndExitMultiSelect();
+        await _loadDirectory(_currentPath);
+      }
+    } catch (e) {
+      _showErrorDialog('重命名失败', e.toString());
+    }
+  }
   Future<void> _uploadFile() async {
     // 在操作前检查连接状态
     if (!await _checkConnection()) return;
@@ -384,25 +661,46 @@ class _SftpPageState extends State<SftpPage> {
     
     try {
       int successCount = 0;
-      for (final filename in _selectedFiles) {
+      int totalCount = _selectedFiles.length;
+      
+      _showProgressDialog('删除文件', showCancel: true);
+      _cancelOperation = false;
+
+      for (int i = 0; i < totalCount; i++) {
         // 在删除每个文件前检查连接状态
         if (!await _checkConnection()) break;
+        if (_cancelOperation) break;
         
+        final filename = _selectedFiles.elementAt(i);
         final itemPath = _joinPath(_currentPath, filename);
+        
+        setState(() {
+          _currentOperation = '正在删除: $filename (${i + 1} / $totalCount)';
+        });
+
         try {
           final stat = await _sftpClient.stat(itemPath);
           if (stat.isDirectory) {
-            await _sftpClient.rmdir(itemPath);
+            // 使用SSH命令删除目录，支持非空目录
+            final session = await _sshClient!.execute('rm -rf "${_escapeShellArgument(itemPath)}"');
+            await session.done;
+            if (session.exitCode == 0) {
+              successCount++;
+            } else {
+              final error = await session.stderr.join();
+              debugPrint('删除目录失败: $error');
+            }
           } else {
             await _sftpClient.remove(itemPath);
+            successCount++;
           }
-          successCount++;
         } catch (e) {
           debugPrint('删除 $filename 失败: $e');
         }
       }
 
-      if (mounted) {
+      if (mounted) Navigator.of(context).pop();
+      if (!_cancelOperation && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('删除完成: $successCount/${_selectedFiles.length}')),
         );
@@ -410,8 +708,18 @@ class _SftpPageState extends State<SftpPage> {
         await _loadDirectory(_currentPath);
       }
     } catch (e) {
-      _showErrorDialog('删除失败', e.toString());
+      if (mounted) {
+        try { Navigator.of(context).pop(); } catch (_) {}
+        _showErrorDialog('删除失败', e.toString());
+      }
+    } finally {
+      _currentOperation = '';
     }
+  }
+
+  // 转义Shell参数中的特殊字符
+  String _escapeShellArgument(String argument) {
+    return argument.replaceAll("'", "'\\''");
   }
 
   Future<void> _downloadSelectedFiles() async {
@@ -448,7 +756,7 @@ class _SftpPageState extends State<SftpPage> {
     String? saveDir = _appSettings.defaultDownloadPath?.isNotEmpty == true 
         ? _appSettings.defaultDownloadPath 
         : await _getDownloadDirectory();
-
+    
     if (saveDir == null && Platform.isAndroid) {
       saveDir = await _getAndroidDownloadDirectory();
     }
@@ -966,56 +1274,88 @@ class _SftpPageState extends State<SftpPage> {
     }
   }
 
+  // 修改为支持批量复制
   Future<void> _copySelected() async {
-    if (_selectedFiles.length != 1) return;
+    if (_selectedFiles.isEmpty) return;
     
     // 在操作前检查连接状态
     if (!await _checkConnection()) return;
-    
-    final name = _selectedFiles.first;
-    final remotePath = _joinPath(_currentPath, name);
 
-    try {
-      final stat = await _sftpClient.stat(remotePath);
-      if (!_hasReadPermission(stat)) {
-        _showErrorDialog('复制失败', '没有读取 $name 的权限');
+    final newClipboardItems = <ClipboardItem>[];
+    
+    for (final name in _selectedFiles) {
+      final remotePath = _joinPath(_currentPath, name);
+
+      try {
+        final stat = await _sftpClient.stat(remotePath);
+        if (!_hasReadPermission(stat)) {
+          _showErrorDialog('复制失败', '没有读取 $name 的权限');
+          return;
+        }
+        newClipboardItems.add(ClipboardItem(
+          path: remotePath,
+          isDirectory: stat.isDirectory,
+          name: name,
+        ));
+      } catch (e) {
+        _showErrorDialog('复制失败', '无法访问 $name: $e');
         return;
       }
-      setState(() {
-        _clipboardFilePath = remotePath;
-        _clipboardIsDirectory = stat.isDirectory;
-        _clipboardIsCut = false;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('已复制')));
+    }
+
+    setState(() {
+      _clipboardItems.clear();
+      _clipboardItems.addAll(newClipboardItems);
+      _clipboardIsCut = false;
+    });
+    
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('已复制 ${_selectedFiles.length} 个项目')),
+      );
       _clearSelectionAndExitMultiSelect();
-    } catch (e) {
-      _showErrorDialog('复制失败', e.toString());
     }
   }
 
+  // 修改为支持批量剪切
   Future<void> _cutSelected() async {
-    if (_selectedFiles.length != 1) return;
+    if (_selectedFiles.isEmpty) return;
     
     // 在操作前检查连接状态
     if (!await _checkConnection()) return;
-    
-    final name = _selectedFiles.first;
-    final remotePath = _joinPath(_currentPath, name);
 
-    try {
-      final stat = await _sftpClient.stat(remotePath);
-      if (!_hasWritePermission(stat)) {
-        _showErrorDialog('剪切失败', '没有修改 $name 的权限');
+    final newClipboardItems = <ClipboardItem>[];
+    
+    for (final name in _selectedFiles) {
+      final remotePath = _joinPath(_currentPath, name);
+
+      try {
+        final stat = await _sftpClient.stat(remotePath);
+        if (!_hasReadPermission(stat)) {
+          _showErrorDialog('剪切失败', '没有修改 $name 的权限');
+          return;
+        }
+        newClipboardItems.add(ClipboardItem(
+          path: remotePath,
+          isDirectory: stat.isDirectory,
+          name: name,
+        ));
+      } catch (e) {
+        _showErrorDialog('剪切失败', '无法访问 $name: $e');
         return;
       }
-      setState(() {
-        _clipboardFilePath = remotePath;
-        _clipboardIsDirectory = stat.isDirectory;
-        _clipboardIsCut = true;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('已剪切: $name')));
-    } catch (e) {
-      _showErrorDialog('剪切失败', e.toString());
+    }
+
+    setState(() {
+      _clipboardItems.clear();
+      _clipboardItems.addAll(newClipboardItems);
+      _clipboardIsCut = true;
+    });
+    
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('已剪切 ${_selectedFiles.length} 个项目')),
+      );
     }
   }
 
@@ -1025,16 +1365,6 @@ class _SftpPageState extends State<SftpPage> {
       return permissions.length >= 9 && permissions[6] == 'r';
     } catch (e) {
       debugPrint('检查读取权限失败: $e');
-      return true;
-    }
-  }
-
-  bool _hasWritePermission(dynamic stat) {
-    try {
-      final permissions = _getPermissions(stat);
-      return permissions.length >= 9 && permissions[7] == 'w';
-    } catch (e) {
-      debugPrint('检查写入权限失败: $e');
       return true;
     }
   }
@@ -1078,77 +1408,75 @@ class _SftpPageState extends State<SftpPage> {
     });
   }
 
+  // 修改为支持批量粘贴，添加权限检查
   Future<void> _pasteFile() async {
-    if (_clipboardFilePath == null) return;
+    if (_clipboardItems.isEmpty) return;
     
     // 在操作前检查连接状态
     if (!await _checkConnection()) return;
-    
-    final fileName = _clipboardFilePath!.split('/').last;
-    final newPath = _joinPath(_currentPath, fileName);
 
-    try {
-      setState(() => _isLoading = true);
-      if (_clipboardIsCut) {
-        await _sftpClient.rename(_clipboardFilePath!, newPath);
-        bool sourceExists = true, targetExists = false;
-        try { await _sftpClient.stat(_clipboardFilePath!); } catch (e) { sourceExists = false; }
-        try { await _sftpClient.stat(newPath); targetExists = true; } catch (e) { targetExists = false; }
-        
-        if (!sourceExists && targetExists) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('移动成功: $fileName')));
-          }
-          if (mounted) {
-            setState(() {
-              _selectedFiles.clear();
-              _clipboardFilePath = null;
-              _clipboardIsCut = false;
-            });
-            await _loadDirectory(_currentPath);
-          }
+    _showProgressDialog('粘贴文件', showCancel: true);
+    _cancelOperation = false;
+
+    int successCount = 0;
+    int totalCount = _clipboardItems.length;
+
+    for (int i = 0; i < totalCount; i++) {
+      if (_cancelOperation) break;
+      if (!await _checkConnection()) break;
+      
+      final item = _clipboardItems[i];
+      final newPath = _joinPath(_currentPath, item.name);
+
+      setState(() {
+        _currentOperation = '正在粘贴: ${item.name} (${i + 1} / $totalCount)';
+      });
+
+      try {
+        if (_clipboardIsCut) {
+          // 剪切操作：移动文件/目录
+          await _sftpClient.rename(item.path, newPath);
+          successCount++;
         } else {
-          throw Exception('剪切操作失败：权限不足或目标已存在');
-        }
-      } else {
-        final cmd = _clipboardIsDirectory
-            ? 'cp -r "${_clipboardFilePath!}" "$newPath"'
-            : 'cp "${_clipboardFilePath!}" "$newPath"';
-        final session = await _sshClient!.execute(cmd);
-        await session.done;
-        final exitCode = session.exitCode;
-
-        if (exitCode == 0) {
-          bool targetExists = false;
-          try { await _sftpClient.stat(newPath); targetExists = true; } catch (e) { targetExists = false; }
-          if (targetExists) {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('复制成功: $fileName')));
-              setState(() {
-                _selectedFiles.clear();
-                _clipboardFilePath = null;
-              });
-              await _loadDirectory(_currentPath);
-            }
+          // 复制操作：使用SSH命令复制
+          final cmd = item.isDirectory
+              ? 'cp -r "${_escapeShellArgument(item.path)}" "${_escapeShellArgument(newPath)}"'
+              : 'cp "${_escapeShellArgument(item.path)}" "${_escapeShellArgument(newPath)}"';
+          
+          final session = await _sshClient!.execute(cmd);
+          await session.done;
+          
+          if (session.exitCode == 0) {
+            successCount++;
           } else {
-            throw Exception('复制操作失败：目标文件不存在');
+            final stderr = await session.stderr.join();
+            debugPrint('复制失败: $stderr');
           }
-        } else {
-          final stderr = await session.stderr.join();
-          throw Exception('复制命令执行失败，退出码: $exitCode\n错误: $stderr');
         }
+      } catch (e) {
+        debugPrint('粘贴 ${item.name} 失败: $e');
       }
-    } catch (e) {
-      if (mounted) _showErrorDialog('粘贴失败', e.toString());
-      if (mounted) {
+    }
+
+    if (mounted) Navigator.of(context).pop();
+    
+    if (!_cancelOperation && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('粘贴完成: $successCount / $totalCount 个项目')),
+      );
+      
+      // 如果是剪切操作，清空剪贴板
+      if (_clipboardIsCut) {
         setState(() {
-          _clipboardFilePath = null;
+          _clipboardItems.clear();
           _clipboardIsCut = false;
         });
       }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
+      
+      await _loadDirectory(_currentPath);
     }
+
+    _currentOperation = '';
   }
 
   void _showErrorDialog(String title, String message) {
@@ -1170,6 +1498,10 @@ class _SftpPageState extends State<SftpPage> {
   }
 
   void _goToParentDirectory() {
+    setState(() {
+        _isMultiSelectMode = false;
+        _selectedFiles.clear();
+    });
     if (_currentPath != '/') {
       String parentPath = _normalizePath(_currentPath);
       if (parentPath.endsWith('/') && parentPath != '/') {
@@ -1183,37 +1515,6 @@ class _SftpPageState extends State<SftpPage> {
 
   void _exitApp() => Navigator.of(context).pop();
 
-  Future<bool> _onWillPop() async {
-    if (_currentPath != '/') {
-      _goToParentDirectory();
-      return false;
-    }
-    
-    final now = DateTime.now();
-    final bool shouldExit = _lastBackPressedTime == null ||
-        now.difference(_lastBackPressedTime!) > const Duration(seconds: 2);
-
-    if (shouldExit) {
-      _lastBackPressedTime = now;
-      
-    Fluttertoast.showToast(
-        msg: "再按一次退出",
-        toastLength: Toast.LENGTH_SHORT, 
-        gravity: ToastGravity.BOTTOM, 
-        timeInSecForIosWeb: 1, 
-        backgroundColor: Colors.grey[700], 
-        textColor: Colors.white,
-        fontSize: 16.0 
-    );
-      
-      Future.delayed(const Duration(seconds: 2), () {});
-      
-      return false;
-    }
-    
-    return true;
-  }
-
   @override
   void dispose() {
     _cancelCurrentOperation();
@@ -1223,6 +1524,7 @@ class _SftpPageState extends State<SftpPage> {
   }
 
   @override
+  
   Widget build(BuildContext context) {
     final hasSelection = _selectedFiles.isNotEmpty;
     final singleSelection = _selectedFiles.length == 1;
@@ -1231,9 +1533,42 @@ class _SftpPageState extends State<SftpPage> {
     final iconColor = _getIconColor(context);
     final disabledIconColor = _getDisabledIconColor(context);
 
-    // 使用 WillPopScope 来拦截返回按钮
-    return WillPopScope(
-      onWillPop: _onWillPop,
+    // 使用 PopScope 替代过时的 WillPopScope
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) async {
+        if (didPop) return;
+        
+        if (_currentPath != '/') {
+          _goToParentDirectory();
+          return;
+        }
+        
+        final now = DateTime.now();
+        final bool shouldExit = _lastBackPressedTime == null ||
+            now.difference(_lastBackPressedTime!) > const Duration(seconds: 2);
+
+        if (shouldExit) {
+          _lastBackPressedTime = now;
+          
+          Fluttertoast.showToast(
+              msg: "再按一次退出",
+              toastLength: Toast.LENGTH_SHORT, 
+              gravity: ToastGravity.BOTTOM, 
+              timeInSecForIosWeb: 1, 
+              backgroundColor: Colors.grey[700], 
+              textColor: Colors.white,
+              fontSize: 16.0 
+          );
+          
+          Future.delayed(const Duration(seconds: 2), () {});
+        } else {
+          // 允许退出
+          if (mounted) {
+            Navigator.of(context).pop();
+          }
+        }
+      },
       child: Scaffold(
         appBar: AppBar(
           title: Column(
@@ -1298,83 +1633,11 @@ class _SftpPageState extends State<SftpPage> {
             ),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 2),
-              height: 40,
-              child: Row(
-                children: [
-                  Expanded(
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(children: [
-                        if (_currentPath != '/')
-                          IconButton(
-                            icon: const Icon(Icons.arrow_upward),
-                            onPressed: _goToParentDirectory,
-                            tooltip: '上级目录',
-                          ) else IconButton(
-                            icon: const Icon(Icons.circle_outlined),
-                            onPressed: null,
-                            tooltip: '/',
-                          ),
-                        const SizedBox(width: 3),
-                        _buildIconButton(Icons.upload, '上传文件', _uploadFile, iconColor),
-                        const SizedBox(width: 3),
-                        _buildIconButton(Icons.download, '下载文件', 
-                            hasSelection ? _downloadSelectedFiles : null, 
-                            hasSelection ? iconColor : disabledIconColor),
-                        const SizedBox(width: 3),
-                        _buildIconButton(Icons.delete, '删除文件', 
-                            hasSelection ? _deleteSelectedFiles : null, 
-                            hasSelection ? iconColor : disabledIconColor),
-                        const SizedBox(width: 3),
-                        _buildIconButton(Icons.create_new_folder, '新建文件夹', _createDirectory, iconColor),
-                        const SizedBox(width: 8),
-                        _buildIconButton(
-                            _isMultiSelectMode ? Icons.check_box_outline_blank : Icons.check_box,
-                            _isMultiSelectMode ? '取消选择' : '全选', _selectAllFiles, iconColor),
-                        _buildIconButton(Icons.copy, '复制', 
-                            singleSelection ? _copySelected : null, 
-                            singleSelection ? iconColor : disabledIconColor),
-                        const SizedBox(width: 3),
-                        _buildIconButton(Icons.cut, '剪切', 
-                            singleSelection ? _cutSelected : null, 
-                            singleSelection ? iconColor : disabledIconColor),
-                        const SizedBox(width: 3),
-                        _buildIconButton(Icons.paste, '粘贴', 
-                            _clipboardFilePath != null ? _pasteFile : null, 
-                            _clipboardFilePath != null ? iconColor : disabledIconColor),
-
-                      ]),
-                    ),
-                  ),
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(children: [
-                      if (isWideScreen)
-                        TextButton.icon(
-                          icon: Icon(Icons.info, color: singleSelection ? iconColor : disabledIconColor),
-                          label: Text('属性', style: TextStyle(color: singleSelection ? iconColor : disabledIconColor)),
-                          onPressed: singleSelection ? _showFileDetails : null,
-                        )
-                      else
-                        _buildIconButton(Icons.info, '属性', 
-                            singleSelection ? _showFileDetails : null, 
-                            singleSelection ? iconColor : disabledIconColor),
-                      const SizedBox(width: 3),
-                      if (isWideScreen)
-                        TextButton.icon(
-                          icon: Icon(Icons.view_module, color: disabledIconColor),
-                          label: Text('切换视图', style: TextStyle(color: disabledIconColor)),
-                          onPressed: () => setState(() => _viewMode = _viewMode == ViewMode.list ? ViewMode.icon : ViewMode.list),
-                        )
-                      else
-                        _buildIconButton(Icons.view_module, '切换视图', 
-                            () => setState(() => _viewMode = _viewMode == ViewMode.list ? ViewMode.icon : ViewMode.list), 
-                            disabledIconColor),
-                    ]),
-                  ),
-                ],
-              ),
-            ),
+              height: screenWidth < 600 ? 80 : 40, // 小屏幕时高度增加为双排
+              child: screenWidth < 600 
+                  ? _buildDoubleRowToolbar(iconColor, disabledIconColor, hasSelection, singleSelection)
+                  : _buildSingleRowToolbar(iconColor, disabledIconColor, hasSelection, singleSelection, isWideScreen),
+            ), 
             Expanded(
               child: _isLoading
                   ? const Center(child: Text('正在加载'))
@@ -1386,15 +1649,16 @@ class _SftpPageState extends State<SftpPage> {
         ),
       ),
     );
-
   }
 
-  Widget _buildIconButton(IconData icon, String tooltip, VoidCallback? onPressed, Color color) {
+  Widget _buildIconButton(IconData icon, String tooltip, VoidCallback? onPressed, Color color, {double iconSize = 24}) {
     return IconButton(
-      icon: Icon(icon),
+      icon: Icon(icon, size: iconSize),
       onPressed: onPressed,
       tooltip: tooltip,
       color: color,
+      padding: const EdgeInsets.all(4), // 小屏幕时内边距更小
+      constraints: const BoxConstraints(minWidth: 36, minHeight: 36), // 调整最小尺寸
     );
   }
 }

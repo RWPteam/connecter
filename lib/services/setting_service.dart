@@ -50,13 +50,6 @@ class SettingsService {
   // 获取平台特定的默认下载路径
   static Future<String?> getPlatformDefaultDownloadPath() async {
     if (Platform.isAndroid) {
-      // Android: 优先使用 Downloads 目录
-      final downloadsDir = await getDownloadsDirectory();
-      if (downloadsDir != null) {
-        return downloadsDir.path;
-      }
-      
-      // 备用方案：外部存储目录下的 Download 文件夹
       final externalDir = await getExternalStorageDirectory();
       if (externalDir != null) {
         final downloadDir = Directory('${externalDir.path}/Download');
