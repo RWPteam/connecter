@@ -9,6 +9,11 @@ A lightweight & cross-platform SSH/SFTP client built with Flutter.
 - 跨平台：Android / Windows / iOS(ToDo) / HarmonyOS(ToDo)
 - 支持私钥 / 密码 认证
 
+### 截图
+| 手机端SSH | 手机端SFTP | 平板端SFTP |
+|-----------------|--------------|--------------|
+| ![手机端SSH](docs/preview/ssh.jpg) | ![手机端SFTP](docs/preview/sftp.png) | ![平板端SFTP](docs/preview/sftp_pad.jpg) |
+
 ### 下载
 | 平台 | 下载 | 备注 |
 |------|------|------|
@@ -42,11 +47,6 @@ flutter build app
 
 ### 开源协议
 MIT © 2025 RWPteam
-
-### 截图
-| 手机端SSH | 手机端SFTP | 平板端SFTP |
-|-----------------|--------------|--------------|
-| ![手机端SSH](docs/preview/ssh.jpg) | ![手机端SFTP](docs/preview/sftp.png) | ![平板端SFTP](docs/preview/sftp_pad.jpg) |
 
 ### 感谢
 - [xterm.dart](https://github.com/TerminalStudio/xterm.dart) – terminal UI
