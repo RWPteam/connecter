@@ -14,7 +14,6 @@ import 'package:fluttertoast/fluttertoast.dart';
 
 enum ViewMode { list, icon }
 
-// 剪贴板项数据结构 - 移到类外部
 class ClipboardItem {
   final String path;
   final bool isDirectory;
@@ -522,7 +521,7 @@ class _SftpPageState extends State<SftpPage> {
         _showErrorDialog('重命名失败', '名称 "$newName" 已存在');
         return;
       } catch (e) {
-        // 文件不存在，可以继续重命名
+
       }
 
       await _sftpClient.rename(oldPath, newPath);

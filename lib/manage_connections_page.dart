@@ -139,9 +139,8 @@ class _ManageConnectionsPageState extends State<ManageConnectionsPage> {
       }
 
     } on TimeoutException catch (e) {
-      // 处理超时异常
       if (mounted) {
-        Navigator.of(context).pop(); // 关闭加载对话框
+        Navigator.of(context).pop(); 
         showDialog(
           context: context,
           builder: (context) => AlertDialog(
@@ -157,7 +156,6 @@ class _ManageConnectionsPageState extends State<ManageConnectionsPage> {
         );
       }
     } catch (e) {
-      // 关闭加载对话框
       if (mounted) {
         Navigator.of(context).pop(); // 关闭加载对话框
       }

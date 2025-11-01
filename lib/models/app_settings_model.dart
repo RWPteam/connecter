@@ -1,4 +1,3 @@
-// models/app_settings_model.dart
 class AppSettings {
   final String? defaultSftpPath;
   final String? defaultDownloadPath;
@@ -32,11 +31,10 @@ class AppSettings {
     );
   }
 
-  // 默认设置
   static AppSettings get defaults {
     return const AppSettings(
       defaultSftpPath: '/',
-      defaultDownloadPath: null, // null 表示使用平台默认
+      defaultDownloadPath: null, 
     );
   }
 }

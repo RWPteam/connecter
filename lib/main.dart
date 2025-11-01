@@ -1,12 +1,8 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'main_page.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
-    // 桌面端特定初始化
-  }
   runApp(const MyApp());
 }
 

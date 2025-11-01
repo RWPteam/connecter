@@ -65,7 +65,7 @@ class _ManageCredentialsPageState extends State<ManageCredentialsPage> {
             onPressed: () async {
               await _storageService.deleteCredential(credential.id);
               if (mounted) {
-                _loadCredentials(); // 重新加载列表
+                _loadCredentials(); 
               }
               Navigator.of(context).pop();
             },
@@ -316,18 +316,16 @@ class _CredentialDialogState extends State<CredentialDialog> {
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      // 固定对话框宽度
       insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
       child: ConstrainedBox(
         constraints: const BoxConstraints(
-          maxWidth: 500, // 设置最大宽度
+          maxWidth: 500,
         ),
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // 标题
               Row(
                 children: [
                   Expanded(

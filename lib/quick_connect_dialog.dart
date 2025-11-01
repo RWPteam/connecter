@@ -233,7 +233,6 @@ void _generateConnectionName() {
     }
   }
 
-  // 新增：仅保存连接而不连接
   Future<void> _saveConnectionOnly() async {
     if (!_formKey.currentState!.validate()) return;
     if (_selectedCredential == null) {

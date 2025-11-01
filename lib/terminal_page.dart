@@ -100,7 +100,6 @@ class _TerminalPageState extends State<TerminalPage> implements TextInputClient 
   }
 
   Future<void> _connectToHost() async {
-    // 新增：防止重复连接
     if (_connectionEstablished) return;
     
     try {
@@ -399,7 +398,6 @@ class _TerminalPageState extends State<TerminalPage> implements TextInputClient 
       ),
       PopupMenuItem<String>(value: 'clear', child: Text('清屏')),
       PopupMenuItem<String>(value: 'fontsize', child: Text('字体大小')),
-      // 新增：主题菜单项
       PopupMenuItem<String>(value: 'theme', child: Text('主题')),
       PopupMenuDivider(),
       PopupMenuItem<String>(value: 'disconnect', child: Text('断开连接并返回')),
@@ -420,7 +418,6 @@ class _TerminalPageState extends State<TerminalPage> implements TextInputClient 
       case 'clear':
         _clearTerminal();
         break;
-      // 新增：主题选择
       case 'theme':
         _showThemeSelector();
         break;
@@ -535,7 +532,6 @@ class _TerminalPageState extends State<TerminalPage> implements TextInputClient 
     );
   }
 
-  // 新增：切换主题
   void _switchTheme(TerminalTheme newTheme) {
     setState(() {
       _currentTheme = newTheme;
@@ -543,7 +539,6 @@ class _TerminalPageState extends State<TerminalPage> implements TextInputClient 
     _hideThemeSelector();
   }
 
-  // 新增：隐藏主题选择器
   void _hideThemeSelector() {
     setState(() {
       _menuIsOpen = false;
@@ -556,7 +551,6 @@ class _TerminalPageState extends State<TerminalPage> implements TextInputClient 
     
   }
 
-  // 新增：重置主题选择器隐藏计时器
   void _resetHideThemeSelectorTimer() {
     _hideThemeSelectorTimer?.cancel();
     _hideThemeSelectorTimer = Timer(const Duration(seconds: 5), _hideThemeSelector);
@@ -722,26 +716,22 @@ class _TerminalPageState extends State<TerminalPage> implements TextInputClient 
     _hideSliderTimer?.cancel();
     _hideSliderTimer = Timer(const Duration(seconds: 3), _hideFontSlider);
   }
-
-    void _manageFocus() {
-      if (_isThemeSelectorVisible || _isSliderVisible || _menuIsOpen) {
-        // 如果有任何菜单或选择器显示，移除焦点
-        _removeFocus();
-      } else if (_isConnected && !_shouldBeReadOnly) {
-        // 否则，如果已连接且不应该只读，请求焦点
-        _requestFocusWithDelay();
-      }
+//
+  void _manageFocus() {
+    if (_isThemeSelectorVisible || _isSliderVisible || _menuIsOpen) {
+      _removeFocus();
+    } else if (_isConnected && !_shouldBeReadOnly) {
+      _requestFocusWithDelay();
     }
+  }
 
-    // 新增：移除焦点的方法
-    void _removeFocus() {
-      _focusRequested = false;
-      _detachTextInput();
-      // 移除所有焦点
-      _keyboardFocusNode.unfocus();
-      _inputFocusNode.unfocus();
-      FocusScope.of(context).unfocus();
-    }
+  void _removeFocus() {
+    _focusRequested = false;
+    _detachTextInput();    // 移除所有焦点
+    _keyboardFocusNode.unfocus();
+    _inputFocusNode.unfocus();
+    FocusScope.of(context).unfocus();
+  }
 
   void _applyFontSize() {
     WidgetsBinding.instance.addPostFrameCallback((_) {

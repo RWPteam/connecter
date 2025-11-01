@@ -8,7 +8,7 @@ class ConnectionInfo {
   bool remember;
   bool isPinned;
   DateTime lastUsed;
-  String? sftpPath; // 新增：SFTP默认访问路径
+  String? sftpPath; 
 
   ConnectionInfo({
     required this.id,
@@ -58,7 +58,7 @@ class ConnectionInfo {
       type: type,
       remember: json['remember'],
       isPinned: json['isPinned'] ?? false,
-      sftpPath: json['sftpPath'], // 新增：反序列化SFTP路径
+      sftpPath: json['sftpPath'], 
       lastUsed: json['lastUsed'] != null
         ? DateTime.parse(json['lastUsed'])
         : DateTime.now(),

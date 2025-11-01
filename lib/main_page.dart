@@ -1,5 +1,4 @@
 // ignore_for_file: use_build_context_synchronously
-
 import 'dart:async';
 import 'dart:io';
 import 'package:connecter/setting_page.dart';
@@ -89,7 +88,6 @@ class _MainPageState extends State<MainPage> {
   Future<void> _requestPermissions() async {
     final storageStatus = await Permission.storage.request();
     final storageStatusHigh = await Permission.manageExternalStorage.request();
-    // 检查权限是否都已授予
     if (storageStatus.isGranted || storageStatusHigh.isGranted) {
       setState(() {
         _permissionsGranted = true;
@@ -276,17 +274,14 @@ class _MainPageState extends State<MainPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 快速连接按钮
                   buttons[0],
                   const SizedBox(height: 16),
-                  
-                  // 在窄屏模式下显示两个最近连接（居中显示）
                   if (_recentConnections.isNotEmpty)
                     Column(
                       children: [
                         for (int i = 0; i < _recentConnections.take(2).length; i++)
                           Container(
-                            height: 50, // 高度减半
+                            height: 50, 
                             margin: EdgeInsets.only(bottom: i < _recentConnections.take(2).length - 1 ? 12 : 0),
                             decoration: BoxDecoration(
                               border: Border.all(
@@ -331,7 +326,6 @@ class _MainPageState extends State<MainPage> {
       ),
     );
   }else {
-      // 宽屏模式保持不变
       return Row(
         children: [
           Expanded(
@@ -425,7 +419,6 @@ class _MainPageState extends State<MainPage> {
     }
   }
 
-// 窄屏模式下的小型连接项
   Widget _buildSmallConnectionTile(BuildContext context, ConnectionInfo connection) {
     final isConnectingThis = _isConnecting && _connectingConnection?.id == connection.id;
     
@@ -451,7 +444,6 @@ class _MainPageState extends State<MainPage> {
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 child: Row(
                   children: [
-                    // 左侧图标
                     SizedBox(
                       width: 24,
                       child: Icon(
@@ -462,7 +454,6 @@ class _MainPageState extends State<MainPage> {
                     ),
                     const SizedBox(width: 12),
                     
-                    // 连接名称
                     Expanded(
                       child: Text(
                         connection.name,
@@ -474,7 +465,6 @@ class _MainPageState extends State<MainPage> {
                       ),
                     ),
                     
-                    // 右侧菜单按钮
                     PopupMenuButton<String>(
                       icon: const Icon(Icons.more_vert, color: Colors.grey, size: 20),
                       onSelected: (value) {
@@ -673,11 +663,9 @@ void _connectTo(ConnectionInfo connection) async {
     _connectingConnection = connection;
   });
 
-  // 使用延迟来确保UI先更新
   await Future.delayed(const Duration(milliseconds: 500));
 
   try {
-    // 在后台执行连接操作
     await _performConnection(connection);
   } catch (e) {
     _handleConnectionError(connection, e.toString());
@@ -692,7 +680,6 @@ void _connectTo(ConnectionInfo connection) async {
 }
 
 Future<void> _performConnection(ConnectionInfo connection) async {
-  // 显示加载对话框
   if (mounted) {
     showDialog(
       context: context,
@@ -722,19 +709,17 @@ Future<void> _performConnection(ConnectionInfo connection) async {
       orElse: () => throw Exception('找不到认证凭证'),
     );
 
-    // 连接操作
     await sshService.connect(connection, credential)
         .timeout(const Duration(seconds: 3), onTimeout: () {
       throw TimeoutException('连接超时，请检查网络或主机是否可达');
     });
       
-    // 添加到最近连接（不等待完成）
+    // 添加到最近连接（不等待完成），不然巨卡无比
     unawaited (storageService.addRecentConnection(connection));
 
     if (mounted) {
-      Navigator.of(context).pop(); // 关闭加载对话框
+      Navigator.of(context).pop(); 
       
-      // 导航到新页面
       if (connection.type == ConnectionType.sftp) {
         Navigator.of(context).push(
           MaterialPageRoute(
@@ -757,7 +742,7 @@ Future<void> _performConnection(ConnectionInfo connection) async {
     }
   } catch (e) {
     if (mounted) {
-      Navigator.of(context).pop(); // 关闭加载对话框
+      Navigator.of(context).pop(); 
     }
     rethrow;
   }
@@ -795,7 +780,7 @@ void _handleConnectionError(ConnectionInfo connection, String error) {
     }) {
       final buttonChild = showSubtitle 
           ? Padding(
-              padding: const EdgeInsets.only(left: 8.0), // 添加16px左边距
+              padding: const EdgeInsets.only(left: 8.0), 
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -819,7 +804,7 @@ void _handleConnectionError(ConnectionInfo connection, String error) {
               ),
             )
           : Padding(
-              padding: const EdgeInsets.only(left: 8.0), // 添加16px左边距
+              padding: const EdgeInsets.only(left: 8.0), 
               child: Text(
                 title,
                 style: const TextStyle(
