@@ -2,19 +2,6 @@
   "app": {
     "signingConfigs": [
       {
-        "name": "co",
-        "type": "HarmonyOS",
-        "material": {
-          "certpath": "C:\\Users\\samuioto\\.ohos\\config\\default_ohos_rpRxKB2YehPUzNCDkdw81SON7GPeeJ9g0bbeOg1xnwA=.cer",
-          "keyAlias": "debugKey",
-          "keyPassword": "0000001B4BC69CA45599C2F39AFCFCDCBEE5FDD8CE1A6790269714B8D5D13033EE680532591252D30FD422",
-          "profile": "C:\\Users\\samuioto\\.ohos\\config\\default_ohos_rpRxKB2YehPUzNCDkdw81SON7GPeeJ9g0bbeOg1xnwA=.p7b",
-          "signAlg": "SHA256withECDSA",
-          "storeFile": "C:\\Users\\samuioto\\.ohos\\config\\default_ohos_rpRxKB2YehPUzNCDkdw81SON7GPeeJ9g0bbeOg1xnwA=.p12",
-          "storePassword": "0000001BAAB906799B2B92E9F75FE0A29163D803981BF4926ADD4C990912EC1F48111B00D1B51C37C76A74"
-        }
-      },
-      {
         "name": "default",
         "type": "HarmonyOS",
         "material": {
@@ -25,6 +12,19 @@
           "signAlg": "SHA256withECDSA",
           "storeFile": "C:\\Users\\samuioto\\.ohos\\config\\connecter_ohos_srS1tgMaG4LUhmG5-0bEkIs7KXu2myQh4uHQoVyA20w=.p12",
           "storePassword": "0000001B9FD3D92FFB54C153FAF78C936872FF3011C7D9AA5950DF9FE2C3FC88A7CE2718B84A024688FCCA"
+        }
+      },
+      {
+        "name": "connecter",
+        "type": "HarmonyOS",
+        "material": {
+          "certpath": "C:\\Users\\samuioto\\.ohos\\config\\connecter_ohos_srS1tgMaG4LUhmG5-0bEkIs7KXu2myQh4uHQoVyA20w=.cer",
+          "keyAlias": "debugKey",
+          "keyPassword": "0000001BB833A237789F23CB968C3FD5E65753B5B114723C00A87A6F376D0D8FF7F972DB2B2AA79E5AA67A",
+          "profile": "C:\\Users\\samuioto\\.ohos\\config\\connecter_ohos_srS1tgMaG4LUhmG5-0bEkIs7KXu2myQh4uHQoVyA20w=.p7b",
+          "signAlg": "SHA256withECDSA",
+          "storeFile": "C:\\Users\\samuioto\\.ohos\\config\\connecter_ohos_srS1tgMaG4LUhmG5-0bEkIs7KXu2myQh4uHQoVyA20w=.p12",
+          "storePassword": "0000001B85D991CFD96D41B7BE30F5FD7B45443D599EEAA30D8107E5E6A4DDE95B76F7FDFFFEBE4EAEF248"
         }
       }
     ],
