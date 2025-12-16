@@ -6,7 +6,6 @@ import '../models/app_settings_model.dart';
 
 class SettingsService {
   static const String _settingsKey = 'app_settings';
-
   Future<AppSettings> getSettings() async {
     try {
       final prefs = await SharedPreferences.getInstance();

@@ -62,4 +62,7 @@ class SshService {
     _client?.close();
     _client = null;
   }
+  bool isConnected() {
+    return _client != null;
+  }
 }

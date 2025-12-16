@@ -5,10 +5,10 @@ packages:
     dependency: transitive
     description:
       name: asn1lib
-      sha256: "4bae5ae63e6d6dd17c4aac8086f3dec26c0236f6a0f03416c6c19d830c367cf5"
+      sha256: "9a8f69025044eb466b9b60ef3bc3ac99b4dc6c158ae9c56d25eeccf5bc56d024"
       url: "https://pub.dev"
     source: hosted
-    version: "1.5.8"
+    version: "1.6.5"
   async:
     dependency: transitive
     description:
@@ -61,26 +61,26 @@ packages:
     dependency: transitive
     description:
       name: cross_file
-      sha256: "2f9d2cbccb76127ba28528cb3ae2c2326a122446a83de5a056aaa3880d3882c5"
+      sha256: "7caf6a750a0c04effbb52a676dce9a4a592e10ad35c34d6d2d0e4811160d5670"
       url: "https://pub.dev"
     source: hosted
-    version: "0.3.3+7"
+    version: "0.3.4+2"
   crypto:
     dependency: transitive
     description:
       name: crypto
-      sha256: "8be10341257b613566fdc9fd073c46f7c032ed329b1c732bda17aca29f2366c8"
+      sha256: c8ea0233063ba03258fbcf2ca4d6dadfefe14f02fab57702265467a19f27fadf
       url: "https://pub.dev"
     source: hosted
-    version: "3.0.0"
+    version: "3.0.7"
   cupertino_icons:
     dependency: "direct main"
     description:
       name: cupertino_icons
-      sha256: "5fbfae177f2c844e3ca80f401ff8fd6c60ee301e2dfd67fe8fb97a7307459a6b"
+      sha256: ba631d1c7f7bef6b729a622b7b752645a2d076dba9976925b8f25725a30e1ee6
       url: "https://pub.dev"
     source: hosted
-    version: "1.0.1"
+    version: "1.0.8"
   dartssh2:
     dependency: "direct main"
     description:
@@ -93,10 +93,10 @@ packages:
     dependency: transitive
     description:
       name: equatable
-      sha256: c6094fd1efad3046334a9c40bee022147e55c25401ccd89b94e373e3edadd375
+      sha256: "567c64b3cb4cf82397aac55f4f0cbd3ca20d77c6c03bedbc4ceaddc08904aef7"
       url: "https://pub.dev"
     source: hosted
-    version: "2.0.3"
+    version: "2.0.7"
   fake_async:
     dependency: transitive
     description:
@@ -109,10 +109,10 @@ packages:
     dependency: transitive
     description:
       name: ffi
-      sha256: "7bf0adc28a23d395f19f3f1eb21dd7cfd1dd9f8e1c50051c069122e6853bc878"
+      sha256: "16ed7b077ef01ad6170a3d0c57caa4a112a38d7a2ed5602e0aca9ca6f3d98da6"
       url: "https://pub.dev"
     source: hosted
-    version: "2.1.0"
+    version: "2.1.3"
   file:
     dependency: "direct overridden"
     description:
@@ -144,7 +144,7 @@ packages:
     description:
       path: "packages/file_selector/file_selector"
       ref: HEAD
-      resolved-ref: "793d567e6a9669f69f226b8d69b3313c6fb5550e"
+      resolved-ref: c8dcc27e8ea01326727075985207c77002b2bb8d
       url: "https://gitcode.com/openharmony-tpc/flutter_packages.git"
     source: git
     version: "1.0.0"
@@ -185,7 +185,7 @@ packages:
     description:
       path: "packages/file_selector/file_selector_ohos"
       ref: HEAD
-      resolved-ref: "793d567e6a9669f69f226b8d69b3313c6fb5550e"
+      resolved-ref: c8dcc27e8ea01326727075985207c77002b2bb8d
       url: "https://gitcode.com/openharmony-tpc/flutter_packages.git"
     source: git
     version: "0.5.0+2"
@@ -213,6 +213,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.9.3+4"
+  fixnum:
+    dependency: transitive
+    description:
+      name: fixnum
+      sha256: b6dc7065e46c974bc7c5f143080a6764ec7a4be6da1285ececdc37be96de53be
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.1.1"
   flutter:
     dependency: "direct main"
     description: flutter
@@ -222,10 +230,10 @@ packages:
     dependency: "direct dev"
     description:
       name: flutter_lints
-      sha256: ad76540d21c066228ee3f9d1dad64a9f7e46530e8bb7c85011a88bc1fd874bc5
+      sha256: "9e8c3858111da373efc5aa341de011d9bd23e2c5c5e0c62bccf32438e192d7b1"
       url: "https://pub.dev"
     source: hosted
-    version: "3.0.0"
+    version: "3.0.2"
   flutter_plugin_android_lifecycle:
     dependency: transitive
     description:
@@ -248,10 +256,10 @@ packages:
     dependency: transitive
     description:
       name: http
-      sha256: bb2ce4590bc2667c96f318d68cac1b5a7987ec819351d32b1c987239a815e007
+      sha256: "87721a4a50b19c7f1d49001e51409bddc46303966ce89a65af4f4e6004896412"
       url: "https://pub.dev"
     source: hosted
-    version: "1.5.0"
+    version: "1.6.0"
   http_parser:
     dependency: transitive
     description:
@@ -328,10 +336,10 @@ packages:
     dependency: transitive
     description:
       name: js
-      sha256: d9bdfd70d828eeb352390f81b18d6a354ef2044aa28ef25682079797fa7cd174
+      sha256: c1b2e9b5ea78c45e1a0788d29606ba27dc5f71f019f32ca5140f61ef071838cf
       url: "https://pub.dev"
     source: hosted
-    version: "0.6.3"
+    version: "0.7.1"
   leak_tracker:
     dependency: transitive
     description:
@@ -417,7 +425,7 @@ packages:
     description:
       path: "packages/path_provider/path_provider"
       ref: HEAD
-      resolved-ref: "793d567e6a9669f69f226b8d69b3313c6fb5550e"
+      resolved-ref: c8dcc27e8ea01326727075985207c77002b2bb8d
       url: "https://gitcode.com/openharmony-tpc/flutter_packages.git"
     source: git
     version: "2.1.0"
@@ -450,7 +458,7 @@ packages:
     description:
       path: "packages/path_provider/path_provider_ohos"
       ref: HEAD
-      resolved-ref: "793d567e6a9669f69f226b8d69b3313c6fb5550e"
+      resolved-ref: c8dcc27e8ea01326727075985207c77002b2bb8d
       url: "https://gitcode.com/openharmony-tpc/flutter_packages.git"
     source: git
     version: "2.2.1"
@@ -552,14 +560,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.9.1"
-  process:
-    dependency: transitive
-    description:
-      name: process
-      sha256: "7009fcaa731943cfd124f11e23428bf9ceb38f08df079fb79c915fa726a5a739"
-      url: "https://pub.dev"
-    source: hosted
-    version: "4.0.0"
   provider:
     dependency: "direct main"
     description:
@@ -581,7 +581,7 @@ packages:
     description:
       path: "packages/shared_preferences/shared_preferences"
       ref: HEAD
-      resolved-ref: "793d567e6a9669f69f226b8d69b3313c6fb5550e"
+      resolved-ref: c8dcc27e8ea01326727075985207c77002b2bb8d
       url: "https://gitcode.com/openharmony-tpc/flutter_packages.git"
     source: git
     version: "2.2.0"
@@ -614,7 +614,7 @@ packages:
     description:
       path: "packages/shared_preferences/shared_preferences_ohos"
       ref: HEAD
-      resolved-ref: "793d567e6a9669f69f226b8d69b3313c6fb5550e"
+      resolved-ref: c8dcc27e8ea01326727075985207c77002b2bb8d
       url: "https://gitcode.com/openharmony-tpc/flutter_packages.git"
     source: git
     version: "2.2.0"
@@ -655,14 +655,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.10.0"
-  sprintf:
-    dependency: transitive
-    description:
-      name: sprintf
-      sha256: "1fc9ffe69d4df602376b52949af107d8f5703b77cda567c4d7d86a0693120f23"
-      url: "https://pub.dev"
-    source: hosted
-    version: "7.0.0"
   stack_trace:
     dependency: transitive
     description:
@@ -707,18 +699,18 @@ packages:
     dependency: transitive
     description:
       name: typed_data
-      sha256: "53bdf7e979cfbf3e28987552fd72f637e63f3c8724c9e56d9246942dc2fa36ee"
+      sha256: facc8d6582f16042dd49f2463ff1bd6e2c9ef9f3d5da3d9b087e244a7b564b3c
       url: "https://pub.dev"
     source: hosted
-    version: "1.3.0"
+    version: "1.3.2"
   uuid:
     dependency: "direct main"
     description:
       name: uuid
-      sha256: e03928880bdbcbf496fb415573f5ab7b1ea99b9b04f669c01104d085893c3134
+      sha256: a11b666489b1954e01d992f3d601b1804a33937b5a8fe677bd26b8a9f96f96e8
       url: "https://pub.dev"
     source: hosted
-    version: "4.0.0"
+    version: "4.5.2"
   vector_math:
     dependency: transitive
     description:
@@ -755,10 +747,10 @@ packages:
     dependency: transitive
     description:
       name: xdg_directories
-      sha256: "0186b3f2d66be9a12b0295bddcf8b6f8c0b0cc2f85c6287344e2a6366bc28457"
+      sha256: "7a3f37b05d989967cdddcbb571f1ea834867ae2faa29725fd085180e0883aa15"
       url: "https://pub.dev"
     source: hosted
-    version: "0.2.0"
+    version: "1.1.0"
   xterm:
     dependency: "direct main"
     description:
