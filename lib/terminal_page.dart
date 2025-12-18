@@ -23,20 +23,34 @@ class TerminalPage extends StatefulWidget {
   State<TerminalPage> createState() => _TerminalPageState();
 }
 
-class _TerminalPageState extends State<TerminalPage> {
-  late final Terminal terminal;
-  SSHClient? _sshClient;
-  SSHSession? _session;
+const int _maxSessions = 2;
 
-  bool _isConnected = false;
-  bool _isConnecting = true;
-  String _status = '连接中...';
+class _TerminalPageState extends State<TerminalPage> {
+  // --- 状态重构：使用 List 管理多个会话 ---
+  late final List<Terminal> _terminals;
+  final List<SSHClient?> _sshClients = List.filled(_maxSessions, null);
+  final List<SSHSession?> _sessions = List.filled(_maxSessions, null);
+  final List<bool> _isConnecteds = List.filled(_maxSessions, false);
+  final List<bool> _isConnectings = List.filled(_maxSessions, false);
+  final List<String> _statuses = List.filled(_maxSessions, '未连接');
+  final List<StreamSubscription?> _stdoutSubs = List.filled(_maxSessions, null);
+  final List<StreamSubscription?> _stderrSubs = List.filled(_maxSessions, null);
+
+  int _activeIndex = 0; // 当前显示的会话索引 (0 或 1)
+  bool _isMultiWindowMode = false; // 是否开启了多窗口模式
+
+  // 快捷获取当前活跃对象的 Getter
+  Terminal get terminal => _terminals[_activeIndex];
+  SSHSession? get _session => _sessions[_activeIndex];
+  bool get _isConnected => _isConnecteds[_activeIndex];
+  bool get _isConnecting => _isConnectings[_activeIndex];
+  String get _status => _statuses[_activeIndex];
 
   // 用于控制 TerminalView 的焦点
   final FocusNode _terminalFocusNode = FocusNode();
 
-  StreamSubscription? _stdoutSubscription;
-  StreamSubscription? _stderrSubscription;
+  //StreamSubscription? _stdoutSubscription;
+  //StreamSubscription? _stderrSubscription;
 
   double _fontSize = 14.0;
   OverlayEntry? _fontSliderOverlay;
@@ -64,28 +78,30 @@ class _TerminalPageState extends State<TerminalPage> {
   @override
   void initState() {
     super.initState();
-    // 初始化终端
-    terminal = Terminal(
-      maxLines: 10000,
-    );
+    // 初始化两个终端实例
+    _terminals = List.generate(_maxSessions, (index) {
+      final t = Terminal(maxLines: 10000);
 
-    // 监听 xterm 的输出流，直接转发给 SSH
-    terminal.onOutput = (data) {
-      if (_session != null && _isConnected) {
-        try {
-          // 这里使用 utf8.encode 转换成 Uint8List 发送
-          _session!.write(utf8.encode(data));
-        } catch (_) {}
-      }
-    };
+      // 这里的回调需要根据索引来发送数据
+      t.onOutput = (data) {
+        if (_sessions[index] != null && _isConnecteds[index]) {
+          try {
+            _sessions[index]!.write(utf8.encode(data));
+          } catch (_) {}
+        }
+      };
 
-    terminal.onResize = (width, height, pixelWidth, pixelHeight) {
-      _session?.resizeTerminal(width, height, pixelWidth, pixelHeight);
-    };
+      t.onResize = (width, height, pixelWidth, pixelHeight) {
+        _sessions[index]
+            ?.resizeTerminal(width, height, pixelWidth, pixelHeight);
+      };
+
+      return t;
+    });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initFontSize();
-      _connectToHost();
+      _connectToHost(0); // 默认连接第一个
     });
   }
 
@@ -100,89 +116,122 @@ class _TerminalPageState extends State<TerminalPage> {
     }
   }
 
-  Future<void> _connectToHost() async {
+  Future<void> _connectToHost(int index) async {
     try {
-      if (mounted) {
-        setState(() {
-          _isConnecting = true;
-          _status = '连接中...';
-        });
-      }
+      if (!mounted) return;
+      setState(() {
+        _isConnectings[index] = true;
+        _statuses[index] = '连接中...';
+      });
 
       final sshService = SshService();
-      _sshClient =
+      final client =
           await sshService.connect(widget.connection, widget.credential);
+      _sshClients[index] = client;
 
-      // 获取当前终端的尺寸，如果没有布局完成，给一个默认值
-      final width = terminal.viewWidth > 0 ? terminal.viewWidth : 80;
-      final height = terminal.viewHeight > 0 ? terminal.viewHeight : 24;
+      final t = _terminals[index];
+      final width = t.viewWidth > 0 ? t.viewWidth : 80;
+      final height = t.viewHeight > 0 ? t.viewHeight : 24;
 
-      _session = await _sshClient!.shell(
+      final session = await client.shell(
         pty: SSHPtyConfig(
           width: width,
           height: height,
           type: 'xterm-256color',
         ),
       );
+      _sessions[index] = session;
 
-      _stdoutSubscription = _session!.stdout.listen((data) {
+      // 监听输出
+      _stdoutSubs[index] = session.stdout.listen((data) {
         if (!mounted) return;
         try {
-          terminal.write(utf8.decode(data));
+          t.write(utf8.decode(data));
+        } catch (_) {}
+      });
+
+      _stderrSubs[index] = session.stderr.listen((data) {
+        if (!mounted) return;
+        try {
+          t.write(utf8.decode(data));
         } catch (_) {
-          // 忽略解码错误
+          t.write('错误: <stderr 解码失败>');
         }
       });
 
-      _stderrSubscription = _session!.stderr.listen((data) {
-        if (!mounted) return;
-        try {
-          terminal.write(utf8.decode(data));
-        } catch (_) {
-          terminal.write('错误: <stderr 解码失败>');
-        }
-      });
-
-      _session!.done.then((_) {
+      session.done.then((_) {
         if (!mounted) return;
         setState(() {
-          _isConnected = false;
-          _isConnecting = false;
-          _status = '连接已断开';
+          _isConnecteds[index] = false;
+          _isConnectings[index] = false;
+          _statuses[index] = '连接已断开';
         });
-        terminal.write('\r\n连接已断开\r\n');
+        t.write('\r\n连接已断开\r\n');
       });
 
       if (mounted) {
         setState(() {
-          _isConnected = true;
-          _isConnecting = false;
-          _status = '已连接';
+          _isConnecteds[index] = true;
+          _isConnectings[index] = false;
+          _statuses[index] = '已连接';
         });
-        // 连接成功后请求焦点，弹出键盘
-        _terminalFocusNode.requestFocus();
+        if (_activeIndex == index) _terminalFocusNode.requestFocus();
       }
 
-      terminal.write('\x1B[2J\x1B[1;1H');
-      terminal.buffer.clear();
-      terminal.write('连接到 ${widget.connection.host} 成功\r\n');
-
-      // 连接建立后稍微延迟一下强制刷新尺寸
-      Future.delayed(const Duration(milliseconds: 500), () {
-        if (_session != null && terminal.viewWidth > 0) {
-          _session!
-              .resizeTerminal(terminal.viewWidth, terminal.viewHeight, 0, 0);
-        }
-      });
+      t.write('\x1B[2J\x1B[1;1H');
+      t.buffer.clear();
+      t.write('连接到 SSH-${widget.connection.name}-${index + 1} 成功\r\n');
     } catch (e) {
       if (mounted) {
         setState(() {
-          _isConnected = false;
-          _isConnecting = false;
-          _status = '连接失败: $e';
+          _isConnecteds[index] = false;
+          _isConnectings[index] = false;
+          _statuses[index] = '连接失败: $e';
         });
-        terminal.write('连接失败: $e\r\n');
+        _terminals[index].write('连接失败: $e\r\n');
       }
+    }
+  }
+
+  void _enableMultiWindow() {
+    setState(() {
+      _isMultiWindowMode = true;
+      _activeIndex = 1; // 自动切到第二个窗口
+    });
+    _connectToHost(1);
+  }
+
+  Future<void> _disableMultiWindow() async {
+    // 弹出确认对话框
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('提示'),
+        content: const Text('即将关闭第二个连接，请确认工作已保存'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('取消')),
+          TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('确认关闭', style: TextStyle(color: Colors.red))),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      // 释放第二个会话资源
+      _stdoutSubs[1]?.cancel();
+      _stderrSubs[1]?.cancel();
+      _sessions[1]?.close();
+      _sshClients[1]?.close();
+
+      setState(() {
+        _isMultiWindowMode = false;
+        _activeIndex = 0; // 回到第一个窗口
+        _isConnecteds[1] = false;
+      });
+      _terminalFocusNode.requestFocus();
     }
   }
 
@@ -201,10 +250,18 @@ class _TerminalPageState extends State<TerminalPage> {
 
   @override
   void dispose() {
-    _stdoutSubscription?.cancel();
-    _stderrSubscription?.cancel();
-    _session?.close();
-    _sshClient?.close();
+    for (var sub in _stdoutSubs) {
+      sub?.cancel();
+    }
+    for (var sub in _stderrSubs) {
+      sub?.cancel();
+    }
+    for (var s in _sessions) {
+      s?.close();
+    }
+    for (var c in _sshClients) {
+      c?.close();
+    }
     _terminalFocusNode.dispose();
     _hideSliderTimer?.cancel();
     _hideThemeSelectorTimer?.cancel();
@@ -239,7 +296,6 @@ class _TerminalPageState extends State<TerminalPage> {
       const PopupMenuItem<String>(value: 'clear', child: Text('清屏')),
       const PopupMenuItem<String>(value: 'fontsize', child: Text('字体大小')),
       const PopupMenuItem<String>(value: 'theme', child: Text('主题')),
-      const PopupMenuDivider(),
       const PopupMenuItem<String>(value: 'disconnect', child: Text('断开连接并返回')),
     ];
   }
@@ -376,13 +432,13 @@ class _TerminalPageState extends State<TerminalPage> {
   }
 
   void _reconnect() {
-    _session?.close();
-    _sshClient?.close();
+    _sessions[_activeIndex]?.close();
+    _sshClients[_activeIndex]?.close();
     setState(() {
-      _isConnected = false;
-      terminal.buffer.clear();
+      _isConnecteds[_activeIndex] = false;
+      _terminals[_activeIndex].buffer.clear();
     });
-    _connectToHost();
+    _connectToHost(_activeIndex);
   }
 
   void _showCommandsSubMenu() {
@@ -528,55 +584,74 @@ class _TerminalPageState extends State<TerminalPage> {
 
   @override
   Widget build(BuildContext context) {
+    String displayTitle = _isMultiWindowMode
+        ? "SSH-${widget.connection.name}-${_activeIndex + 1}"
+        : widget.connection.name;
     return Scaffold(
       resizeToAvoidBottomInset: true,
       appBar: AppBar(
         backgroundColor: _getAppBarColor(),
         foregroundColor: Colors.white,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              widget.connection.name,
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            Row(
-              children: [
-                Icon(
-                  _isConnected ? Icons.circle : Icons.circle_outlined,
-                  color: _isConnecting ? Colors.grey : Colors.greenAccent,
-                  size: 10,
-                ),
-                const SizedBox(width: 6),
-                Text(_status,
-                    style:
-                        const TextStyle(fontSize: 12, color: Colors.white70)),
-              ],
-            ),
-          ],
+        title: InkWell(
+          // 点击标题也可以快速切换（可选）
+          onTap: _isMultiWindowMode
+              ? () => setState(() => _activeIndex = _activeIndex == 0 ? 1 : 0)
+              : null,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(displayTitle,
+                  style: const TextStyle(
+                      fontSize: 18, fontWeight: FontWeight.bold)),
+              Text(_status,
+                  style: const TextStyle(fontSize: 12, color: Colors.white70)),
+            ],
+          ),
         ),
         actions: [
+          // 切换按钮：只有在多窗口模式下显示
+          if (_isMultiWindowMode)
+            IconButton(
+              icon: const Icon(Icons.swap_horiz),
+              tooltip: "切换窗口",
+              onPressed: () {
+                setState(() => _activeIndex = _activeIndex == 0 ? 1 : 0);
+                _terminalFocusNode.requestFocus();
+              },
+            ),
           PopupMenuButton<String>(
-            itemBuilder: (context) => _buildMenuItems(),
-            onSelected: _onMenuSelected,
-            onOpened: () => setState(() => _menuIsOpen = true),
-            onCanceled: () => setState(() => _menuIsOpen = false),
+            onSelected: (val) {
+              if (val == 'multi_window') {
+                _isMultiWindowMode
+                    ? _disableMultiWindow()
+                    : _enableMultiWindow();
+              } else {
+                _onMenuSelected(val);
+              }
+            },
+            itemBuilder: (context) => [
+              ..._buildMenuItems().where(
+                  (item) => (item as PopupMenuItem).value != 'disconnect'),
+              PopupMenuItem<String>(
+                value: 'multi_window',
+                child: Text(_isMultiWindowMode ? '关闭多会话' : '多会话（Beta）'),
+              ),
+              const PopupMenuDivider(),
+              const PopupMenuItem<String>(
+                  value: 'disconnect', child: Text('断开连接并返回')),
+            ],
           ),
         ],
       ),
       body: SafeArea(
         child: TerminalView(
-          terminal,
+          _terminals[_activeIndex],
+          key: ValueKey(_activeIndex),
           focusNode: _terminalFocusNode,
-          autofocus: false,
-          backgroundOpacity: 1.0,
-          textStyle: TerminalStyle(
-            fontSize: _fontSize,
-            fontFamily: 'maple',
-          ),
+          autofocus: true,
+          textStyle: TerminalStyle(fontSize: _fontSize, fontFamily: 'maple'),
           theme: _currentTheme,
           showToolbar: _ismobile,
-          alwaysShowCursor: true,
           readOnly: _shouldBeReadOnly,
         ),
       ),
