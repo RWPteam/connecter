@@ -31,8 +31,6 @@ class NativeBridge {
   }
 }
 
-
-
 class MainPage extends StatefulWidget {
   const MainPage({super.key});
 
@@ -42,7 +40,7 @@ class MainPage extends StatefulWidget {
 
 class _MainPageState extends State<MainPage> {
   List<ConnectionInfo> _recentConnections = [];
-  bool _isLoading = true; 
+  bool _isLoading = true;
   final StorageService _storageService = StorageService();
   bool _isConnecting = false;
   ConnectionInfo? _connectingConnection;
@@ -64,8 +62,6 @@ class _MainPageState extends State<MainPage> {
     }
   }
 
-
-
   Future<void> _checkAndRequestPermissions() async {
     final storageStatus = await Permission.storage.status;
     final storageStatusHigh = await Permission.manageExternalStorage.status;
@@ -78,7 +74,7 @@ class _MainPageState extends State<MainPage> {
       return;
     } else {
       _showPermissionDialog();
-      }
+    }
   }
 
   void _showPermissionDialog() {
@@ -93,7 +89,7 @@ class _MainPageState extends State<MainPage> {
             actions: [
               TextButton(
                 onPressed: () {
-                  Navigator.of(context).pop(false); 
+                  Navigator.of(context).pop(false);
                 },
                 child: const Text('取消'),
               ),
@@ -151,7 +147,7 @@ class _MainPageState extends State<MainPage> {
   void _exitApp() {
     exit(0);
   }
-    
+
   Future<void> _checkFirstRun() async {
     final settings = await _settingsService.getSettings();
     setState(() {
@@ -163,8 +159,6 @@ class _MainPageState extends State<MainPage> {
       _settingsService.markAsNotFirstRun();
     }
   }
-
-
 
   void _showWelcome() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -204,9 +198,7 @@ class _MainPageState extends State<MainPage> {
     });
   }
 
-
   void _showHelp() {
-
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => const HelpPage(),
@@ -214,24 +206,38 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
-
   Future<void> _loadRecentConnections() async {
     try {
       final recentConnections = await _storageService.getRecentConnections();
+
+      final seen = <String>{};
+      final uniqueConnections = recentConnections.where((connection) {
+        final String key =
+            '${connection.host}:${connection.port}:${connection.credentialId}:${connection.type}';
+        if (seen.contains(key)) {
+          return false;
+        } else {
+          seen.add(key);
+          return true;
+        }
+      }).toList();
+
       setState(() {
-        _recentConnections = recentConnections;
+        _recentConnections = uniqueConnections;
         _isLoading = false;
       });
     } catch (e) {
       setState(() {
         _isLoading = false;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('读取最近连接失败：$e'),
-          backgroundColor: Colors.red 
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('读取最近连接失败：$e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -250,23 +256,24 @@ class _MainPageState extends State<MainPage> {
   }
 
   Future<void> _saveConnection(ConnectionInfo connection) async {
-  try {
-    // 检查连接是否已存在
-    final savedConnections = await _storageService.getConnections();
-    final bool connectionExists = savedConnections.any((c) => c.id == connection.id);
-    
-    if (connectionExists) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('连接已存在'),
-        ),
-      );
-      return;
-    }
+    try {
+      // 检查连接是否已存在
+      final savedConnections = await _storageService.getConnections();
+      final bool connectionExists =
+          savedConnections.any((c) => c.id == connection.id);
 
-    // 保存连接
-    await _storageService.saveConnection(connection);
-      
+      if (connectionExists) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('连接已存在'),
+          ),
+        );
+        return;
+      }
+
+      // 保存连接
+      await _storageService.saveConnection(connection);
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('保存连接${connection.name}成功'),
@@ -314,15 +321,15 @@ class _MainPageState extends State<MainPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('ConnSSH'),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        foregroundColor: Theme.of(context).colorScheme.onSurface,
+        //backgroundColor: Colors.transparent,
+        //elevation: 0,
+        //foregroundColor: Theme.of(context).colorScheme.onSurface,
       ),
       body: LayoutBuilder(
         builder: (context, constraints) {
           final bool showRecentConnections = constraints.maxWidth >= 800;
           final bool showButtonSubtitle = constraints.maxHeight >= 500;
-          
+
           return _buildContent(
             context,
             showRecentConnections,
@@ -343,83 +350,91 @@ class _MainPageState extends State<MainPage> {
     double screenWidth,
   ) {
     final buttons = _buildButtons(
-      context, 
-      showButtonSubtitle, 
+      context,
+      showButtonSubtitle,
       screenHeight,
     );
-    
-  if (!showRecentConnections) {
-    return Padding(
-      padding: const EdgeInsets.all(24.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(bottom: 24.0),
-            child: Text(
-              '连接管理',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.bold,
+
+    if (!showRecentConnections) {
+      return Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(bottom: 24.0),
+              child: Text(
+                '连接管理',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
               ),
             ),
-          ),
-          Expanded(
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  buttons[0],
-                  const SizedBox(height: 16),
-                  if (_recentConnections.isNotEmpty)
-                    Column(
-                      children: [
-                        for (int i = 0; i < _recentConnections.take(2).length; i++)
-                          Container(
-                            height: 50, 
-                            margin: EdgeInsets.only(bottom: i < _recentConnections.take(2).length - 1 ? 12 : 0),
-                            decoration: BoxDecoration(
-                              border: Border.all(
-                                color: Colors.grey,
-                                width: 0.2,
+            Expanded(
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    buttons[0],
+                    const SizedBox(height: 16),
+                    if (_recentConnections.isNotEmpty)
+                      Column(
+                        children: [
+                          for (int i = 0;
+                              i < _recentConnections.take(2).length;
+                              i++)
+                            Container(
+                              height: 50,
+                              margin: EdgeInsets.only(
+                                  bottom:
+                                      i < _recentConnections.take(2).length - 1
+                                          ? 12
+                                          : 0),
+                              decoration: BoxDecoration(
+                                border: Border.all(
+                                  color: Colors.grey,
+                                  width: 0.2,
+                                ),
+                                borderRadius: BorderRadius.circular(12),
                               ),
-                              borderRadius: BorderRadius.circular(12),
+                              child: _buildSmallConnectionTile(
+                                  context, _recentConnections[i]),
                             ),
-                            child: _buildSmallConnectionTile(context, _recentConnections[i]),
-                          ),
-                      ],
-                    )
-                  else Container(
-                    height: 50,
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                        color: Colors.grey,
-                        width: 0.2,
-                      ),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Align(
-                      alignment: Alignment.centerLeft,
-                      child: Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 16),
-                        child: Text(
-                          '无最近连接',
-                          style: TextStyle(
+                        ],
+                      )
+                    else
+                      Container(
+                        height: 50,
+                        decoration: BoxDecoration(
+                          border: Border.all(
                             color: Colors.grey,
-                            fontSize: 14,
+                            width: 0.2,
+                          ),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Align(
+                          alignment: Alignment.centerLeft,
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 16),
+                            child: Text(
+                              '无最近连接',
+                              style: TextStyle(
+                                color: Colors.grey,
+                                fontSize: 14,
+                              ),
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  ),
-                  ...buttons.sublist(1),
-                ],
+                    ...buttons.sublist(1),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
-      ),
-    );
-  }else {
+          ],
+        ),
+      );
+    } else {
       return Row(
         children: [
           Expanded(
@@ -433,9 +448,10 @@ class _MainPageState extends State<MainPage> {
                     padding: const EdgeInsets.only(bottom: 24.0),
                     child: Text(
                       '连接管理',
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+                      style:
+                          Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
                     ),
                   ),
                   Expanded(
@@ -450,7 +466,6 @@ class _MainPageState extends State<MainPage> {
               ),
             ),
           ),
-          
           Expanded(
             flex: 1,
             child: Padding(
@@ -461,12 +476,11 @@ class _MainPageState extends State<MainPage> {
                   Text(
                     '最近连接',
                     style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                          fontWeight: FontWeight.bold,
+                        ),
                   ),
                   const SizedBox(height: 24),
-                  
-                  _isLoading 
+                  _isLoading
                       ? const Expanded(
                           child: Center(
                             child: CircularProgressIndicator(),
@@ -490,8 +504,8 @@ class _MainPageState extends State<MainPage> {
                                 itemBuilder: (context, index) {
                                   final connection = _recentConnections[index];
                                   return Container(
-                                    height: 100, 
-                                    margin: const EdgeInsets.only(bottom: 16), 
+                                    height: 100,
+                                    margin: const EdgeInsets.only(bottom: 16),
                                     decoration: BoxDecoration(
                                       border: Border.all(
                                         color: Colors.grey,
@@ -499,7 +513,8 @@ class _MainPageState extends State<MainPage> {
                                       ),
                                       borderRadius: BorderRadius.circular(12),
                                     ),
-                                    child: _buildConnectionTile(context, connection),
+                                    child: _buildConnectionTile(
+                                        context, connection),
                                   );
                                 },
                               ),
@@ -513,9 +528,11 @@ class _MainPageState extends State<MainPage> {
     }
   }
 
-  Widget _buildSmallConnectionTile(BuildContext context, ConnectionInfo connection) {
-    final isConnectingThis = _isConnecting && _connectingConnection?.id == connection.id;
-    
+  Widget _buildSmallConnectionTile(
+      BuildContext context, ConnectionInfo connection) {
+    final isConnectingThis =
+        _isConnecting && _connectingConnection?.id == connection.id;
+
     return Container(
       height: 50,
       child: Material(
@@ -541,13 +558,14 @@ class _MainPageState extends State<MainPage> {
                     SizedBox(
                       width: 24,
                       child: Icon(
-                        connection.isPinned ? Icons.vertical_align_top : _getConnectionIcon(connection.type),
+                        connection.isPinned
+                            ? Icons.vertical_align_top
+                            : _getConnectionIcon(connection.type),
                         color: Colors.grey,
                         size: 20,
                       ),
                     ),
                     const SizedBox(width: 12),
-                    
                     Expanded(
                       child: Text(
                         connection.name,
@@ -558,9 +576,9 @@ class _MainPageState extends State<MainPage> {
                         ),
                       ),
                     ),
-                    
                     PopupMenuButton<String>(
-                      icon: const Icon(Icons.more_vert, color: Colors.grey, size: 20),
+                      icon: const Icon(Icons.more_vert,
+                          color: Colors.grey, size: 20),
                       onSelected: (value) {
                         _handleMenuAction(value, connection);
                       },
@@ -612,14 +630,18 @@ class _MainPageState extends State<MainPage> {
       ),
     );
   }
+
   Widget _buildConnectionTile(BuildContext context, ConnectionInfo connection) {
-    final isConnectingThis = _isConnecting && _connectingConnection?.id == connection.id;
-    
+    final isConnectingThis =
+        _isConnecting && _connectingConnection?.id == connection.id;
+
     return ListTile(
       leading: Stack(
         children: [
           Icon(
-            connection.isPinned ? Icons.vertical_align_top : _getConnectionIcon(connection.type),
+            connection.isPinned
+                ? Icons.vertical_align_top
+                : _getConnectionIcon(connection.type),
             color: Colors.grey,
           ),
         ],
@@ -658,24 +680,24 @@ class _MainPageState extends State<MainPage> {
               ],
             ),
           ),
-        PopupMenuItem<String>(
-          value: 'pin',
-          child: Row(
-          children: [
-            const SizedBox(width: 8),
-            Text(connection.isPinned ? '取消置顶' : '置顶'),
-            ],
+          PopupMenuItem<String>(
+            value: 'pin',
+            child: Row(
+              children: [
+                const SizedBox(width: 8),
+                Text(connection.isPinned ? '取消置顶' : '置顶'),
+              ],
+            ),
           ),
-        ),
-        const PopupMenuItem<String>(
-          value: 'save',
-          child: Row(
-            children: [
-              SizedBox(width: 8),
-              Text('保存该连接'),
-            ],
+          const PopupMenuItem<String>(
+            value: 'save',
+            child: Row(
+              children: [
+                SizedBox(width: 8),
+                Text('保存该连接'),
+              ],
+            ),
           ),
-        ),
           const PopupMenuItem<String>(
             value: 'delete',
             child: Row(
@@ -707,7 +729,7 @@ class _MainPageState extends State<MainPage> {
         break;
       case 'save':
         _saveConnection(connection);
-      break;
+        break;
       case 'delete':
         _showDeleteDialog(connection);
         break;
@@ -749,134 +771,134 @@ class _MainPageState extends State<MainPage> {
     }
   }
 
-void _connectTo(ConnectionInfo connection) async {
-  if (_isConnecting) return;
-  
-  setState(() {
-    _isConnecting = true;
-    _connectingConnection = connection;
-  });
+  void _connectTo(ConnectionInfo connection) async {
+    if (_isConnecting) return;
 
-  await Future.delayed(const Duration(milliseconds: 500));
+    setState(() {
+      _isConnecting = true;
+      _connectingConnection = connection;
+    });
 
-  try {
-    await _performConnection(connection);
-  } catch (e) {
-    _handleConnectionError(connection, e.toString());
-  } finally {
-    if (mounted) {
-      setState(() {
-        _isConnecting = false;
-        _connectingConnection = null;
-      });
-    }
-  }
-}
+    await Future.delayed(const Duration(milliseconds: 500));
 
-Future<void> _performConnection(ConnectionInfo connection) async {
-  if (mounted) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return const AlertDialog(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('正在测试连接...'),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  try {
-    final storageService = StorageService();
-    final sshService = SshService();
-    
-    final credentials = await storageService.getCredentials();
-    final credential = credentials.firstWhere(
-      (c) => c.id == connection.credentialId,
-      orElse: () => throw Exception('找不到认证凭证'),
-    );
-
-    await sshService.connect(connection, credential)
-        .timeout(const Duration(seconds: 3),); //onTimeout: () {
-      //throw TimeoutException('连接超时，请检查网络或主机是否可达');
-    //});
-      
-    // 添加到最近连接（不等待完成），不然巨卡无比
-    unawaited (storageService.addRecentConnection(connection));
-
-    if (mounted) {
-      Navigator.of(context).pop(); 
-      
-      if (connection.type == ConnectionType.sftp) {
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => SftpPage(
-              connection: connection,
-              credential: credential,
-            ),
-          ),
-        );
-      } else {
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => TerminalPage(
-              connection: connection,
-              credential: credential,
-            ),
-          ),
-        );
+    try {
+      await _performConnection(connection);
+    } catch (e) {
+      _handleConnectionError(connection, e.toString());
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isConnecting = false;
+          _connectingConnection = null;
+        });
       }
     }
-  } catch (e) {
-    if (mounted) {
-      Navigator.of(context).pop(); 
-    }
-    rethrow;
   }
-}
 
-void _handleConnectionError(ConnectionInfo connection, String error) {
-  if (!mounted) return;
-  
-  showDialog(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: const Text('连接失败'),
-      content: Text(error),
-      actions: [
-        OutlinedButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('确定'),
-        ),
-      ],
-    ),
-  );
-}
+  Future<void> _performConnection(ConnectionInfo connection) async {
+    if (mounted) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return const AlertDialog(
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('正在测试连接...'),
+              ],
+            ),
+          );
+        },
+      );
+    }
 
+    try {
+      final storageService = StorageService();
+      final sshService = SshService();
+
+      final credentials = await storageService.getCredentials();
+      final credential = credentials.firstWhere(
+        (c) => c.id == connection.credentialId,
+        orElse: () => throw Exception('找不到认证凭证'),
+      );
+
+      await sshService.connect(connection, credential).timeout(
+            const Duration(seconds: 3),
+          ); //onTimeout: () {
+      //throw TimeoutException('连接超时，请检查网络或主机是否可达');
+      //});
+
+      // 添加到最近连接（不等待完成），不然巨卡无比
+      unawaited(storageService.addRecentConnection(connection));
+
+      if (mounted) {
+        Navigator.of(context).pop();
+
+        if (connection.type == ConnectionType.sftp) {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => SftpPage(
+                connection: connection,
+                credential: credential,
+              ),
+            ),
+          );
+        } else {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => TerminalPage(
+                connection: connection,
+                credential: credential,
+              ),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+      rethrow;
+    }
+  }
+
+  void _handleConnectionError(ConnectionInfo connection, String error) {
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('连接失败'),
+        content: Text(error),
+        actions: [
+          OutlinedButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('确定'),
+          ),
+        ],
+      ),
+    );
+  }
 
   List<Widget> _buildButtons(
-    BuildContext context, 
-    bool showSubtitle, 
+    BuildContext context,
+    bool showSubtitle,
     double screenHeight,
   ) {
     // 根据屏幕高度动态计算按钮高度
     final double buttonHeight = screenHeight >= 500 ? 100 : 80;
-    
+
     Widget buildButton({
       required VoidCallback onPressed,
       required String title,
       required String subtitle,
     }) {
-      final buttonChild = showSubtitle 
+      final buttonChild = showSubtitle
           ? Padding(
-              padding: const EdgeInsets.only(left: 8.0), 
+              padding: const EdgeInsets.only(left: 8.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -900,7 +922,7 @@ void _handleConnectionError(ConnectionInfo connection, String error) {
               ),
             )
           : Padding(
-              padding: const EdgeInsets.only(left: 8.0), 
+              padding: const EdgeInsets.only(left: 8.0),
               child: Text(
                 title,
                 style: TextStyle(
@@ -909,7 +931,7 @@ void _handleConnectionError(ConnectionInfo connection, String error) {
                 ),
               ),
             );
-      
+
       return SizedBox(
         width: double.infinity,
         height: buttonHeight, // 使用动态计算的高度
@@ -929,7 +951,7 @@ void _handleConnectionError(ConnectionInfo connection, String error) {
         ),
       );
     }
-    
+
     return [
       buildButton(
         onPressed: () {
@@ -956,7 +978,7 @@ void _handleConnectionError(ConnectionInfo connection, String error) {
         title: '数据面板',
         subtitle: '监控服务器的CPU、内存等数据',
       ),
-      const SizedBox(height: 16),      
+      const SizedBox(height: 16),
       buildButton(
         onPressed: () {
           Navigator.push(
@@ -972,7 +994,6 @@ void _handleConnectionError(ConnectionInfo connection, String error) {
         subtitle: '查看和编辑所有保存的连接配置',
       ),
       const SizedBox(height: 16),
-      
       buildButton(
         onPressed: () {
           Navigator.push(
@@ -985,7 +1006,6 @@ void _handleConnectionError(ConnectionInfo connection, String error) {
         title: '管理认证凭证',
         subtitle: '管理密码和证书凭证',
       ),
-
       const SizedBox(height: 16),
       buildButton(
         onPressed: () {

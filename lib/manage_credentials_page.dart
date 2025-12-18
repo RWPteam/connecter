@@ -65,7 +65,7 @@ class _ManageCredentialsPageState extends State<ManageCredentialsPage> {
             onPressed: () async {
               await _storageService.deleteCredential(credential.id);
               if (mounted) {
-                _loadCredentials(); 
+                _loadCredentials();
               }
               Navigator.of(context).pop();
             },
@@ -108,43 +108,67 @@ class _ManageCredentialsPageState extends State<ManageCredentialsPage> {
               itemCount: _credentials.length,
               itemBuilder: (context, index) {
                 final credential = _credentials[index];
-                return Card(
-                  margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                  child: ListTile(
-                    title: Text(
-                      credential.name,
-                      style: const TextStyle(fontWeight: FontWeight.bold),
+                return Container(
+                  margin:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.transparent,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: Colors.grey,
+                      width: 1,
                     ),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('用户名: ${credential.username}'),
-                        const SizedBox(height: 2),
-                        Text(
-                          '认证方式: ${_getAuthTypeText(credential.authType)}',
-                          style: TextStyle(
-                            color: Colors.grey[600],
-                            fontSize: 12,
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: ListTile(
+                      title: Text(
+                        credential.name,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${credential.username}-${_getAuthTypeText(credential.authType)}',
+                            style: TextStyle(
+                              color: Colors.grey[600],
+                              fontSize: 12,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
+                      trailing: PopupMenuButton<String>(
+                        // ... 保持原有的 PopupMenuButton 代码不变
+                        onSelected: (value) {
+                          if (value == 'edit') {
+                            _editCredential(credential);
+                          } else if (value == 'delete') {
+                            _deleteCredential(credential);
+                          }
+                        },
+                        itemBuilder: (context) => [
+                          const PopupMenuItem(
+                            value: 'edit',
+                            child: ListTile(
+                              title: Text('编辑'),
+                              contentPadding: EdgeInsets.zero,
+                              dense: true,
+                            ),
+                          ),
+                          const PopupMenuItem(
+                            value: 'delete',
+                            child: ListTile(
+                              title: Text('删除',
+                                  style: TextStyle(color: Colors.red)),
+                              contentPadding: EdgeInsets.zero,
+                              dense: true,
+                            ),
+                          ),
+                        ],
+                      ),
+                      onTap: () => _editCredential(credential),
                     ),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          onPressed: () => _editCredential(credential),
-                          icon: const Icon(Icons.edit),
-                          tooltip: '编辑',
-                        ),
-                        IconButton(
-                          onPressed: () => _deleteCredential(credential),
-                          icon: const Icon(Icons.delete),
-                          tooltip: '删除',
-                        ),
-                      ],
-                    ),
-                    onTap: () => _editCredential(credential),
                   ),
                 );
               },
@@ -155,11 +179,11 @@ class _ManageCredentialsPageState extends State<ManageCredentialsPage> {
   String _getAuthTypeText(AuthType authType) {
     switch (authType) {
       case AuthType.password:
-        return '密码认证';
+        return '密码';
       case AuthType.privateKey:
-        return '私钥认证';
+        return '私钥';
       case AuthType.passphrase:
-        return '密码短语认证';
+        return '私钥（含phrase）';
     }
   }
 }
@@ -196,7 +220,7 @@ class _CredentialDialogState extends State<CredentialDialog> {
   void initState() {
     super.initState();
     _isEditing = widget.credential != null;
-    
+
     if (_isEditing) {
       _nameController.text = widget.credential!.name;
       _usernameController.text = widget.credential!.username;
@@ -232,7 +256,7 @@ class _CredentialDialogState extends State<CredentialDialog> {
         setState(() {
           _privateKeyController.text = keyContent;
         });
-        
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -268,18 +292,21 @@ class _CredentialDialogState extends State<CredentialDialog> {
       name: _nameController.text.trim(),
       username: _usernameController.text.trim(),
       authType: _authType,
-      password: _authType == AuthType.password ? _passwordController.text : null,
-      privateKey: _authType == AuthType.privateKey ? _privateKeyController.text : null,
-      passphrase: _authType == AuthType.privateKey ? _passphraseController.text : null,
+      password:
+          _authType == AuthType.password ? _passwordController.text : null,
+      privateKey:
+          _authType == AuthType.privateKey ? _privateKeyController.text : null,
+      passphrase:
+          _authType == AuthType.privateKey ? _passphraseController.text : null,
     );
 
     try {
       await _storageService.saveCredential(credential);
-      
+
       if (mounted) {
         Navigator.of(context).pop();
         widget.onSaved?.call();
-        
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(_isEditing ? '凭证已更新' : '凭证已创建'),
@@ -302,14 +329,14 @@ class _CredentialDialogState extends State<CredentialDialog> {
     if (_authType == AuthType.privateKey && (value == null || value.isEmpty)) {
       return '请输入私钥内容';
     }
-    
+
     if (value != null && value.isNotEmpty) {
       // 简单的私钥格式验证
       if (!value.contains('-----BEGIN') && !value.contains('PRIVATE KEY')) {
         return '私钥格式可能不正确';
       }
     }
-    
+
     return null;
   }
 
@@ -341,7 +368,6 @@ class _CredentialDialogState extends State<CredentialDialog> {
                 ],
               ),
               const SizedBox(height: 16),
-              
               Expanded(
                 child: SingleChildScrollView(
                   child: Form(
@@ -354,7 +380,6 @@ class _CredentialDialogState extends State<CredentialDialog> {
                           decoration: const InputDecoration(
                             labelText: '凭证名称',
                             hintText: '输入凭证的显示名称',
-
                           ),
                           textInputAction: TextInputAction.next,
                           validator: (value) {
@@ -365,13 +390,11 @@ class _CredentialDialogState extends State<CredentialDialog> {
                           },
                         ),
                         const SizedBox(height: 16),
-                        
                         TextFormField(
                           controller: _usernameController,
                           decoration: const InputDecoration(
                             labelText: '用户名',
                             hintText: '输入登录用户名',
-
                           ),
                           textInputAction: TextInputAction.next,
                           validator: (value) {
@@ -382,12 +405,10 @@ class _CredentialDialogState extends State<CredentialDialog> {
                           },
                         ),
                         const SizedBox(height: 16),
-                      
                         DropdownButtonFormField<AuthType>(
                           value: _authType,
                           decoration: const InputDecoration(
                             labelText: '认证方式',
-
                           ),
                           items: const [
                             DropdownMenuItem(
@@ -414,7 +435,6 @@ class _CredentialDialogState extends State<CredentialDialog> {
                           },
                         ),
                         const SizedBox(height: 16),
-                        
                         if (_authType == AuthType.password)
                           TextFormField(
                             controller: _passwordController,
@@ -423,7 +443,9 @@ class _CredentialDialogState extends State<CredentialDialog> {
                               hintText: '输入登录密码',
                               suffixIcon: IconButton(
                                 icon: Icon(
-                                  _obscurePassword ? Icons.visibility : Icons.visibility_off,
+                                  _obscurePassword
+                                      ? Icons.visibility
+                                      : Icons.visibility_off,
                                 ),
                                 onPressed: () {
                                   setState(() {
@@ -435,7 +457,7 @@ class _CredentialDialogState extends State<CredentialDialog> {
                             obscureText: _obscurePassword,
                             textInputAction: TextInputAction.done,
                             validator: (value) {
-                              if (_authType == AuthType.password && 
+                              if (_authType == AuthType.password &&
                                   (value == null || value.isEmpty)) {
                                 return '请输入密码';
                               }
@@ -450,7 +472,6 @@ class _CredentialDialogState extends State<CredentialDialog> {
                                 decoration: const InputDecoration(
                                   labelText: '私钥内容',
                                   hintText: '粘贴私钥内容或从文件读取',
-      
                                   alignLabelWithHint: true,
                                 ),
                                 maxLines: 6,
@@ -459,13 +480,13 @@ class _CredentialDialogState extends State<CredentialDialog> {
                                 validator: _validatePrivateKey,
                               ),
                               const SizedBox(height: 12),
-                              
                               Row(
                                 children: [
                                   Expanded(
                                     child: OutlinedButton.icon(
                                       onPressed: _pickPrivateKeyFile,
-                                      icon: const Icon(Icons.file_open, size: 18),
+                                      icon:
+                                          const Icon(Icons.file_open, size: 18),
                                       label: const Text('从文件读取'),
                                     ),
                                   ),
@@ -480,7 +501,6 @@ class _CredentialDialogState extends State<CredentialDialog> {
                                 ],
                               ),
                               const SizedBox(height: 16),
-                              
                               TextFormField(
                                 controller: _passphraseController,
                                 decoration: InputDecoration(
@@ -488,11 +508,14 @@ class _CredentialDialogState extends State<CredentialDialog> {
                                   hintText: '如果私钥有密码保护，请在此输入',
                                   suffixIcon: IconButton(
                                     icon: Icon(
-                                      _obscurePassphrase ? Icons.visibility : Icons.visibility_off,
+                                      _obscurePassphrase
+                                          ? Icons.visibility
+                                          : Icons.visibility_off,
                                     ),
                                     onPressed: () {
                                       setState(() {
-                                        _obscurePassphrase = !_obscurePassphrase;
+                                        _obscurePassphrase =
+                                            !_obscurePassphrase;
                                       });
                                     },
                                   ),
@@ -507,9 +530,7 @@ class _CredentialDialogState extends State<CredentialDialog> {
                   ),
                 ),
               ),
-              
               const SizedBox(height: 16),
-              
               Row(
                 children: [
                   Expanded(

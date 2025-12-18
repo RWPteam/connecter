@@ -5,13 +5,13 @@
         "name": "default",
         "type": "HarmonyOS",
         "material": {
-          "storeFile": "C:/Users/samuioto/Desktop/tssh/connecter.p12",
-          "storePassword": "000000331F561756FF4C483B4F26625433E7154A62394FFF48BBF61858454D35861C5019AB65077E61F3FC6DDA29BF4D4285083D3B1241A5E82BD71500B7527714AAA6",
-          "keyAlias": "connecter",
-          "keyPassword": "00000033BB043FF2EDC87C67368FCAA851BBB86A13DDF5EEED13F98F3D49CAE4B8B014697DFBE548EFB825A735F750A6E87EFD6B068D29B8E8DBEB4F28B411C5DB2708",
+          "storeFile": "C:/Users/samuioto/Desktop/tssh/connssh.p12",
+          "storePassword": "0000001E247AC2BB8D8A1F60853DBE619C56A37FB0A6B781A158D747DB96C389D8B9E480A9A10F890F0E12EC31F7",
+          "keyAlias": "connSSH",
+          "keyPassword": "0000001E70C59C21735DB006F2C8C4BE3CACDEE98FB7ACFA50B150F2D62CD039CCC73B7E60C5A1EC7CC944211FB9",
           "signAlg": "SHA256withECDSA",
-          "profile": "C:/Users/samuioto/Desktop/tssh/connecterRelease.p7b",
-          "certpath": "C:/Users/samuioto/Desktop/tssh/connecter.cer"
+          "profile": "C:/Users/samuioto/Desktop/tssh/connSSHRelease.p7b",
+          "certpath": "C:/Users/samuioto/Desktop/tssh/connSSH.cer"
         }
       },
       {

@@ -12,12 +12,12 @@ import 'sftp_page.dart';
 
 class QuickConnectDialog extends StatefulWidget {
   final ConnectionInfo? connection;
-  final bool isNewConnection; 
+  final bool isNewConnection;
 
   const QuickConnectDialog({
-    super.key, 
+    super.key,
     this.connection,
-    this.isNewConnection = false, 
+    this.isNewConnection = false,
   });
 
   @override
@@ -45,20 +45,21 @@ class _QuickConnectDialogState extends State<QuickConnectDialog> {
   void initState() {
     super.initState();
     _isEditing = widget.connection != null;
-    
+
     if (_isEditing) {
       _nameController.text = widget.connection!.name;
       _hostController.text = widget.connection!.host;
       _portController.text = widget.connection!.port.toString();
       _selectedType = widget.connection!.type;
       _rememberConnection = widget.connection!.remember;
-      _sftpPathController.text = widget.connection!.sftpPath ?? '/'; // 从连接信息中获取SFTP路径
+      _sftpPathController.text =
+          widget.connection!.sftpPath ?? '/'; // 从连接信息中获取SFTP路径
     } else {
       _nameController.text = '新连接';
       _sftpPathController.text = '/'; // 默认路径
       _isNameChanged = false;
     }
-    
+
     _loadCredentials();
   }
 
@@ -67,7 +68,7 @@ class _QuickConnectDialogState extends State<QuickConnectDialog> {
     setState(() {
       _credentials = credentials;
     });
-    
+
     if (_isEditing && _credentials.isNotEmpty) {
       final connectionCredentialId = widget.connection!.credentialId;
       final credential = _credentials.firstWhere(
@@ -84,45 +85,47 @@ class _QuickConnectDialogState extends State<QuickConnectDialog> {
     }
   }
 
+  void _generateConnectionName() {
+    // 编辑模式下不允许自动生成名称，除非用户明确点击重置
+    if (_isNameChanged) return;
 
-void _generateConnectionName() {
-  // 编辑模式下不允许自动生成名称，除非用户明确点击重置
-  if (_isNameChanged) return;
-  
-  if (_hostController.text.isNotEmpty || _portController.text.isNotEmpty) {
-    final host = _hostController.text;
-    final port = _portController.text;
-    if (host.isNotEmpty) {
-      setState(() {
-        _nameController.text = '$host:$port';
-      });
+    if (_hostController.text.isNotEmpty || _portController.text.isNotEmpty) {
+      final host = _hostController.text;
+      final port = _portController.text;
+      if (host.isNotEmpty) {
+        setState(() {
+          _nameController.text = '$host:$port';
+        });
+      }
     }
   }
-}
+
   void _reserToDefaultName() {
     setState(() {
       _isNameChanged = false;
     });
     _generateConnectionName();
   }
-  
+
   void _addNewCredential() {
-    showDialog(context: context, builder: (context) => CredentialDialog(
-      onSaved: () {
-        _loadCredentials().then((_) {
-          if(_credentials.isNotEmpty) {
-            setState(() {
-              _selectedCredential =_credentials.last;
-            });
-          }
-        });
-      },
-    ));
+    showDialog(
+        context: context,
+        builder: (context) => CredentialDialog(
+              onSaved: () {
+                _loadCredentials().then((_) {
+                  if (_credentials.isNotEmpty) {
+                    setState(() {
+                      _selectedCredential = _credentials.last;
+                    });
+                  }
+                });
+              },
+            ));
   }
 
   void _connectToServer(ConnectionInfo connection) async {
     if (_isConnecting) return;
-    
+
     setState(() {
       _isConnecting = true;
     });
@@ -146,7 +149,7 @@ void _generateConnectionName() {
     try {
       final storageService = StorageService();
       final sshService = SshService(); // 在方法内创建 SSH 服务实例
-      
+
       final credentials = await storageService.getCredentials();
       final credential = credentials.firstWhere(
         (c) => c.id == connection.credentialId,
@@ -154,13 +157,16 @@ void _generateConnectionName() {
       );
 
       // 设置3秒超时
-      await sshService.connect(connection, credential)
+      await sshService
+          .connect(connection, credential)
           .timeout(const Duration(seconds: 3), onTimeout: () {
         throw TimeoutException('连接超时，请检查网络或主机是否可达');
       });
-      
-      unawaited(storageService.addRecentConnection(connection));
 
+      unawaited(storageService.addRecentConnection(connection));
+      if (connection.remember) {
+        await storageService.saveConnection(connection);
+      }
       if (mounted) {
         Navigator.of(context).pop();
       }
@@ -186,10 +192,9 @@ void _generateConnectionName() {
           );
         }
       }
-
     } on TimeoutException catch (e) {
       if (mounted) {
-        Navigator.of(context).pop(); 
+        Navigator.of(context).pop();
         showDialog(
           context: context,
           builder: (context) => AlertDialog(
@@ -232,7 +237,7 @@ void _generateConnectionName() {
       }
     }
   }
-  
+
   Future<void> _updateConnection() async {
     if (!_formKey.currentState!.validate()) return;
     if (_selectedCredential == null) {
@@ -255,7 +260,9 @@ void _generateConnectionName() {
         credentialId: _selectedCredential!.id,
         type: _selectedType,
         remember: true,
-        sftpPath: _selectedType == ConnectionType.sftp ? _sftpPathController.text : null, // 保存SFTP路径
+        sftpPath: _selectedType == ConnectionType.sftp
+            ? _sftpPathController.text
+            : null, // 保存SFTP路径
       );
 
       await _storageService.saveConnection(connection);
@@ -303,7 +310,9 @@ void _generateConnectionName() {
         credentialId: _selectedCredential!.id,
         type: _selectedType,
         remember: true,
-        sftpPath: _selectedType == ConnectionType.sftp ? _sftpPathController.text : null, // 保存SFTP路径
+        sftpPath: _selectedType == ConnectionType.sftp
+            ? _sftpPathController.text
+            : null, // 保存SFTP路径
       );
 
       await _storageService.saveConnection(connection);
@@ -361,14 +370,14 @@ void _generateConnectionName() {
                   suffixIcon: IconButton(
                     icon: const Icon(Icons.refresh_outlined),
                     onPressed: () {
-                        _reserToDefaultName();
-                      },
-                    ),
+                      _reserToDefaultName();
+                    },
+                  ),
                 ),
                 onChanged: (value) {
-                    setState(() {
-                      _isNameChanged = true;
-                    });
+                  setState(() {
+                    _isNameChanged = true;
+                  });
                 },
                 validator: (value) {
                   if (value == null || value.isEmpty) {
@@ -378,14 +387,15 @@ void _generateConnectionName() {
                 },
               ),
               const SizedBox(height: 16),
-              
+
               TextFormField(
                 controller: _hostController,
                 decoration: const InputDecoration(
                   labelText: '主机地址',
                   hintText: '例如：192.168.1.1',
                 ),
-                onChanged: !_isEditing ? (value) => _generateConnectionName() : null,
+                onChanged:
+                    !_isEditing ? (value) => _generateConnectionName() : null,
                 validator: (value) {
                   if (value == null || value.isEmpty) {
                     return '请输入主机地址';
@@ -394,14 +404,15 @@ void _generateConnectionName() {
                 },
               ),
               const SizedBox(height: 16),
-              
+
               TextFormField(
                 controller: _portController,
                 decoration: const InputDecoration(
                   labelText: '端口号',
                 ),
                 keyboardType: TextInputType.number,
-                onChanged: !_isEditing ? (value) => _generateConnectionName() : null,
+                onChanged:
+                    !_isEditing ? (value) => _generateConnectionName() : null,
                 validator: (value) {
                   if (value == null || value.isEmpty) {
                     return '请输入端口号';
@@ -414,7 +425,7 @@ void _generateConnectionName() {
                 },
               ),
               const SizedBox(height: 16),
-              
+
               Row(
                 children: [
                   Expanded(
@@ -451,7 +462,7 @@ void _generateConnectionName() {
                 ],
               ),
               const SizedBox(height: 16),
-              
+
               DropdownButtonFormField<ConnectionType>(
                 value: _selectedType,
                 decoration: const InputDecoration(
@@ -470,7 +481,7 @@ void _generateConnectionName() {
                 },
               ),
               const SizedBox(height: 16),
-              
+
               // SFTP路径设置 - 仅在选择SFTP类型时显示
               if (_selectedType == ConnectionType.sftp)
                 Column(
@@ -499,7 +510,7 @@ void _generateConnectionName() {
                     const SizedBox(height: 16),
                   ],
                 ),
-              
+
               if (!widget.isNewConnection && !_isEditing)
                 CheckboxListTile(
                   title: const Text('记住该连接'),
@@ -521,26 +532,30 @@ void _generateConnectionName() {
           child: const Text('取消'),
         ),
         OutlinedButton(
-          onPressed: _isConnecting ? null : () {
-            if (widget.isNewConnection) {
-              _saveConnectionOnly();
-            } else if (_isEditing) {
-              _updateConnection();
-            } else {
-              // 修复：创建连接对象并传递给 _connectToServer
-              final connection = ConnectionInfo(
-                id: const Uuid().v4(),
-                name: _nameController.text,
-                host: _hostController.text,
-                port: int.parse(_portController.text),
-                credentialId: _selectedCredential!.id,
-                type: _selectedType,
-                remember: _rememberConnection,
-                sftpPath: _selectedType == ConnectionType.sftp ? _sftpPathController.text : null,
-              );
-              _connectToServer(connection);
-            }
-          },
+          onPressed: _isConnecting
+              ? null
+              : () {
+                  if (widget.isNewConnection) {
+                    _saveConnectionOnly();
+                  } else if (_isEditing) {
+                    _updateConnection();
+                  } else {
+                    // 修复：创建连接对象并传递给 _connectToServer
+                    final connection = ConnectionInfo(
+                      id: const Uuid().v4(),
+                      name: _nameController.text,
+                      host: _hostController.text,
+                      port: int.parse(_portController.text),
+                      credentialId: _selectedCredential!.id,
+                      type: _selectedType,
+                      remember: _rememberConnection,
+                      sftpPath: _selectedType == ConnectionType.sftp
+                          ? _sftpPathController.text
+                          : null,
+                    );
+                    _connectToServer(connection);
+                  }
+                },
           child: _isConnecting
               ? Text(_getActionButtonText())
               : Text(_getActionButtonText()),

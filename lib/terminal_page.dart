@@ -41,21 +41,26 @@ class _TerminalPageState extends State<TerminalPage> {
   double _fontSize = 14.0;
   OverlayEntry? _fontSliderOverlay;
   Timer? _hideSliderTimer;
-  
+
   bool _isSliderVisible = false;
   bool _menuIsOpen = false;
-  bool _ismobile = defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.ohos || defaultTargetPlatform == TargetPlatform.iOS ;
+  bool _ismobile = defaultTargetPlatform == TargetPlatform.android ||
+      defaultTargetPlatform == TargetPlatform.ohos ||
+      defaultTargetPlatform == TargetPlatform.iOS;
 
   bool _isThemeSelectorVisible = false;
   OverlayEntry? _themeSelectorOverlay;
   Timer? _hideThemeSelectorTimer;
-  TerminalTheme _currentTheme = TerminalThemes.defaultTheme; 
+  TerminalTheme _currentTheme = TerminalThemes.defaultTheme;
 
   bool get _shouldBeReadOnly {
     // 当菜单或滑块打开时，设为只读以防止误触
-    return !_isConnected || _menuIsOpen || _isSliderVisible || _isThemeSelectorVisible;
+    return !_isConnected ||
+        _menuIsOpen ||
+        _isSliderVisible ||
+        _isThemeSelectorVisible;
   }
-  
+
   @override
   void initState() {
     super.initState();
@@ -75,7 +80,7 @@ class _TerminalPageState extends State<TerminalPage> {
     };
 
     terminal.onResize = (width, height, pixelWidth, pixelHeight) {
-       _session?.resizeTerminal(width, height, pixelWidth, pixelHeight);
+      _session?.resizeTerminal(width, height, pixelWidth, pixelHeight);
     };
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -85,14 +90,14 @@ class _TerminalPageState extends State<TerminalPage> {
   }
 
   void _initFontSize() {
-      final screenWidth = MediaQuery.of(context).size.width;
-      final isWideScreen = screenWidth >= 800;
-      // 保持之前的初始化逻辑
-      if (_fontSize == 14.0 && !isWideScreen) {
-        _fontSize = 12.0;
-      } else if (_fontSize == 10.0 && isWideScreen) {
-        _fontSize = 14.0;
-      }
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isWideScreen = screenWidth >= 800;
+    // 保持之前的初始化逻辑
+    if (_fontSize == 14.0 && !isWideScreen) {
+      _fontSize = 12.0;
+    } else if (_fontSize == 10.0 && isWideScreen) {
+      _fontSize = 14.0;
+    }
   }
 
   Future<void> _connectToHost() async {
@@ -103,9 +108,10 @@ class _TerminalPageState extends State<TerminalPage> {
           _status = '连接中...';
         });
       }
-      
+
       final sshService = SshService();
-      _sshClient = await sshService.connect(widget.connection, widget.credential);
+      _sshClient =
+          await sshService.connect(widget.connection, widget.credential);
 
       // 获取当前终端的尺寸，如果没有布局完成，给一个默认值
       final width = terminal.viewWidth > 0 ? terminal.viewWidth : 80;
@@ -156,18 +162,18 @@ class _TerminalPageState extends State<TerminalPage> {
         // 连接成功后请求焦点，弹出键盘
         _terminalFocusNode.requestFocus();
       }
-      
+
       terminal.write('\x1B[2J\x1B[1;1H');
       terminal.buffer.clear();
       terminal.write('连接到 ${widget.connection.host} 成功\r\n');
-      
+
       // 连接建立后稍微延迟一下强制刷新尺寸
       Future.delayed(const Duration(milliseconds: 500), () {
-         if(_session != null && terminal.viewWidth > 0) {
-             _session!.resizeTerminal(terminal.viewWidth, terminal.viewHeight, 0, 0);
-         }
+        if (_session != null && terminal.viewWidth > 0) {
+          _session!
+              .resizeTerminal(terminal.viewWidth, terminal.viewHeight, 0, 0);
+        }
       });
-
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -184,8 +190,8 @@ class _TerminalPageState extends State<TerminalPage> {
     terminal.buffer.clear();
     terminal.setCursor(0, 0); // 重置光标
     if (_isConnected) {
-       // 发送 clear 命令和 VT100 清屏序列
-       _session?.write(Uint8List.fromList(utf8.encode('\x1B[2J\x1B[Hclear\r')));
+      // 发送 clear 命令和 VT100 清屏序列
+      _session?.write(Uint8List.fromList(utf8.encode('\x1B[2J\x1B[Hclear\r')));
     }
   }
 
@@ -201,9 +207,13 @@ class _TerminalPageState extends State<TerminalPage> {
     _sshClient?.close();
     _terminalFocusNode.dispose();
     _hideSliderTimer?.cancel();
-    _hideThemeSelectorTimer?.cancel(); 
-    try { _fontSliderOverlay?.remove(); } catch (_) {}
-    try { _themeSelectorOverlay?.remove(); } catch (_) {}
+    _hideThemeSelectorTimer?.cancel();
+    try {
+      _fontSliderOverlay?.remove();
+    } catch (_) {}
+    try {
+      _themeSelectorOverlay?.remove();
+    } catch (_) {}
     super.dispose();
   }
 
@@ -264,79 +274,79 @@ class _TerminalPageState extends State<TerminalPage> {
     _hideThemeSelectorTimer?.cancel();
 
     _themeSelectorOverlay ??= OverlayEntry(builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setStateOverlay) {
-             return Stack(
-               children: [
-                 Positioned.fill(child: GestureDetector(
-                   behavior: HitTestBehavior.translucent,
-                   onTap: _hideThemeSelector,
-                   child: Container(color: Colors.transparent),
-                 )),
-                 Positioned.fill(
-                    child: Center(
-                        child: GestureDetector( // 添加 GestureDetector 以阻止内部事件冒泡
-                          onTap: () {},
-                          child: Material(
-                            elevation: 8,
-                            borderRadius: BorderRadius.circular(16),
-                            color: Colors.grey[900]!.withOpacity(0.9),
-                            child: Container(
-                              width: MediaQuery.of(context).size.width * 0.7,
-                              padding: const EdgeInsets.all(16),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text('选择主题', style: TextStyle(color: Colors.white, fontSize: 18)),
-                                  const SizedBox(height: 16),
-                                  _buildThemeOption('默认', TerminalThemes.defaultTheme),
-                                  const SizedBox(height: 12),
-                                  _buildThemeOption('纯黑', TerminalThemes.whiteOnBlack),
-                                ],
-                              ),
-                            ),
-                          ),
-                        )
-                    )
-                 )
-               ],
-             );
-          }
+      return StatefulBuilder(builder: (context, setStateOverlay) {
+        return Stack(
+          children: [
+            Positioned.fill(
+                child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTap: _hideThemeSelector,
+              child: Container(color: Colors.transparent),
+            )),
+            Positioned.fill(
+                child: Center(
+                    child: GestureDetector(
+              // 添加 GestureDetector 以阻止内部事件冒泡
+              onTap: () {},
+              child: Material(
+                elevation: 8,
+                borderRadius: BorderRadius.circular(16),
+                color: Colors.grey[900]!.withOpacity(0.9),
+                child: Container(
+                  width: MediaQuery.of(context).size.width * 0.7,
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('选择主题',
+                          style: TextStyle(color: Colors.white, fontSize: 18)),
+                      const SizedBox(height: 16),
+                      _buildThemeOption('默认', TerminalThemes.defaultTheme),
+                      const SizedBox(height: 12),
+                      _buildThemeOption('纯黑', TerminalThemes.whiteOnBlack),
+                    ],
+                  ),
+                ),
+              ),
+            )))
+          ],
         );
+      });
     });
     Overlay.of(context).insert(_themeSelectorOverlay!);
     _resetHideThemeSelectorTimer();
   }
 
   Widget _buildThemeOption(String title, TerminalTheme theme) {
-      final bool isSelected = _currentTheme == theme;
-      
-      return Material(
-        color: isSelected ? Colors.blueAccent.withOpacity(0.1) : Colors.transparent,
+    final bool isSelected = _currentTheme == theme;
+
+    return Material(
+      color:
+          isSelected ? Colors.blueAccent.withOpacity(0.1) : Colors.transparent,
+      borderRadius: BorderRadius.circular(8),
+      child: InkWell(
+        onTap: () => _switchTheme(theme),
         borderRadius: BorderRadius.circular(8),
-        child: InkWell(
-          onTap: () => _switchTheme(theme),
-          borderRadius: BorderRadius.circular(8),
-          child: Container(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              children: [
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    title,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                    ),
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
-      );
+      ),
+    );
   }
 
   void _switchTheme(TerminalTheme newTheme) {
@@ -353,32 +363,38 @@ class _TerminalPageState extends State<TerminalPage> {
     if (_isConnected) _terminalFocusNode.requestFocus();
 
     _hideThemeSelectorTimer?.cancel();
-    try { _themeSelectorOverlay?.remove(); } catch (_) {}
+    try {
+      _themeSelectorOverlay?.remove();
+    } catch (_) {}
     _themeSelectorOverlay = null;
   }
 
   void _resetHideThemeSelectorTimer() {
     _hideThemeSelectorTimer?.cancel();
-    _hideThemeSelectorTimer = Timer(const Duration(seconds: 5), _hideThemeSelector);
+    _hideThemeSelectorTimer =
+        Timer(const Duration(seconds: 5), _hideThemeSelector);
   }
 
   void _reconnect() {
     _session?.close();
     _sshClient?.close();
     setState(() {
-       _isConnected = false;
-       terminal.buffer.clear();
+      _isConnected = false;
+      terminal.buffer.clear();
     });
     _connectToHost();
   }
 
   void _showCommandsSubMenu() {
     final RenderBox button = context.findRenderObject() as RenderBox;
-    final RenderBox overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final RenderBox overlay =
+        Overlay.of(context).context.findRenderObject() as RenderBox;
     final position = RelativeRect.fromRect(
       Rect.fromPoints(
-        button.localToGlobal(button.size.topRight(Offset.zero), ancestor: overlay),
-        button.localToGlobal(button.size.bottomRight(Offset.zero), ancestor: overlay),
+        button.localToGlobal(button.size.topRight(Offset.zero),
+            ancestor: overlay),
+        button.localToGlobal(button.size.bottomRight(Offset.zero),
+            ancestor: overlay),
       ),
       Offset.zero & overlay.size,
     );
@@ -420,7 +436,7 @@ class _TerminalPageState extends State<TerminalPage> {
     if (_isSliderVisible) return;
     setState(() => _isSliderVisible = true);
     // 暂时移除焦点
-    FocusScope.of(context).unfocus(); 
+    FocusScope.of(context).unfocus();
     _hideSliderTimer?.cancel();
 
     _fontSliderOverlay ??= OverlayEntry(
@@ -440,7 +456,8 @@ class _TerminalPageState extends State<TerminalPage> {
                   bottom: 50,
                   left: 20,
                   right: 20,
-                  child: GestureDetector( // 添加 GestureDetector 以阻止内部事件冒泡
+                  child: GestureDetector(
+                    // 添加 GestureDetector 以阻止内部事件冒泡
                     onTap: () {},
                     child: Material(
                       elevation: 8,
@@ -454,8 +471,11 @@ class _TerminalPageState extends State<TerminalPage> {
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                const Text('字体大小', style: TextStyle(color: Colors.white)),
-                                Text('${_fontSize.toInt()}', style: const TextStyle(color: Colors.white)),
+                                const Text('字体大小',
+                                    style: TextStyle(color: Colors.white)),
+                                Text('${_fontSize.toInt()}',
+                                    style:
+                                        const TextStyle(color: Colors.white)),
                               ],
                             ),
                             Slider(
@@ -467,7 +487,6 @@ class _TerminalPageState extends State<TerminalPage> {
                                 setStateOverlay(() => _fontSize = v);
                                 if (mounted) setState(() => _fontSize = v);
                                 _resetHideSliderTimer();
-                                
                               },
                             ),
                           ],
@@ -489,14 +508,16 @@ class _TerminalPageState extends State<TerminalPage> {
 
   void _hideFontSlider() {
     setState(() {
-        _menuIsOpen = false;
-        _isSliderVisible = false;
-      });
+      _menuIsOpen = false;
+      _isSliderVisible = false;
+    });
     // 恢复焦点
     if (_isConnected) _terminalFocusNode.requestFocus();
-    
+
     _hideSliderTimer?.cancel();
-    try { _fontSliderOverlay?.remove(); } catch (_) {}
+    try {
+      _fontSliderOverlay?.remove();
+    } catch (_) {}
     _fontSliderOverlay = null;
   }
 
@@ -527,7 +548,9 @@ class _TerminalPageState extends State<TerminalPage> {
                   size: 10,
                 ),
                 const SizedBox(width: 6),
-                Text(_status, style: const TextStyle(fontSize: 12, color: Colors.white70)),
+                Text(_status,
+                    style:
+                        const TextStyle(fontSize: 12, color: Colors.white70)),
               ],
             ),
           ],
@@ -548,13 +571,13 @@ class _TerminalPageState extends State<TerminalPage> {
           autofocus: false,
           backgroundOpacity: 1.0,
           textStyle: TerminalStyle(
-            fontSize: _fontSize, 
-            fontFamily: 'maple', 
+            fontSize: _fontSize,
+            fontFamily: 'maple',
           ),
           theme: _currentTheme,
-          showToolbar: _ismobile, 
+          showToolbar: _ismobile,
           alwaysShowCursor: true,
-          readOnly: _shouldBeReadOnly, 
+          readOnly: _shouldBeReadOnly,
         ),
       ),
     );

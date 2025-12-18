@@ -86,6 +86,7 @@ class MonitorServerPage extends StatefulWidget {
 }
 
 class _MonitorServerPageState extends State<MonitorServerPage> {
+  Timer? _firstDataTimeoutTimer;
   final StorageService _storageService = StorageService();
   final SshService _sshService = SshService();
   List<ConnectionInfo> _savedConnections = [];
@@ -156,6 +157,7 @@ class _MonitorServerPageState extends State<MonitorServerPage> {
   void dispose() {
     _stopMonitoring();
     _cleanupRemoteScript();
+    _firstDataTimeoutTimer?.cancel();
     _sshService.disconnect();
     super.dispose();
   }
@@ -200,10 +202,12 @@ class _MonitorServerPageState extends State<MonitorServerPage> {
         orElse: () => throw Exception('找不到认证凭证'),
       );
 
-      await _sshService.connect(_selectedConnection!, credential)
+      await _sshService
+          .connect(_selectedConnection!, credential)
           .timeout(const Duration(seconds: 10));
 
-      final setupCmd = "cat << 'EOF' > $_monitorScriptPath\n$_monitorScript\nEOF\nchmod +x $_monitorScriptPath";
+      final setupCmd =
+          "cat << 'EOF' > $_monitorScriptPath\n$_monitorScript\nEOF\nchmod +x $_monitorScriptPath";
       await _sshService.executeCommand(setupCmd);
 
       setState(() {
@@ -216,11 +220,11 @@ class _MonitorServerPageState extends State<MonitorServerPage> {
     } catch (e) {
       setState(() {
         _isLoading = false;
-        _isMonitoring = false; 
+        _isMonitoring = false;
         _errorMessage = '服务设置失败: $e';
       });
-      _cleanupRemoteScript(); 
-      _sshService.disconnect(); 
+      _cleanupRemoteScript();
+      _sshService.disconnect();
     }
   }
 
@@ -228,11 +232,8 @@ class _MonitorServerPageState extends State<MonitorServerPage> {
     try {
       if (_sshService.isConnected()) {
         await _sshService.executeCommand(_cleanupScriptCommand);
-        print('远程脚本清理成功: $_monitorScriptPath');
       }
-    } catch (e) {
-      print('远程脚本清理失败 (可能已断开连接): $e');
-    }
+    } catch (e) {}
   }
 
   void _disconnectFromServer() {
@@ -248,22 +249,37 @@ class _MonitorServerPageState extends State<MonitorServerPage> {
   }
 
   void _startMonitoring() {
-    _fetchServerMetrics(); 
+    _fetchServerMetrics();
+    _firstDataTimeoutTimer?.cancel();
+    _firstDataTimeoutTimer = Timer(const Duration(seconds: 5), () {
+      if (mounted && _isMonitoring && _serverMetrics == null) {
+        _handleFirstDataTimeout();
+      }
+    });
     _monitorTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
       _fetchServerMetrics();
     });
   }
 
+  void _handleFirstDataTimeout() {
+    setState(() {
+      _errorMessage = '连接超时';
+    });
+    _disconnectFromServer();
+  }
+
   void _stopMonitoring() {
     _monitorTimer?.cancel();
     _monitorTimer = null;
+    _firstDataTimeoutTimer?.cancel();
+    _firstDataTimeoutTimer = null;
   }
 
   String _decodeSshOutput(String encodedStr) {
     final cleanStr = encodedStr.trim();
-    
+
     if (!RegExp(r'^\d+$').hasMatch(cleanStr) || cleanStr.isEmpty) {
-      return encodedStr; 
+      return encodedStr;
     }
 
     final StringBuffer buffer = StringBuffer();
@@ -276,7 +292,7 @@ class _MonitorServerPageState extends State<MonitorServerPage> {
       if (currentIndex + 3 <= cleanStr.length) {
         final sub3 = cleanStr.substring(currentIndex, currentIndex + 3);
         code = int.tryParse(sub3) ?? -1;
-        if (code >= 100 && code <= 127) { 
+        if (code >= 100 && code <= 127) {
           charLength = 3;
         } else {
           code = -1;
@@ -292,24 +308,23 @@ class _MonitorServerPageState extends State<MonitorServerPage> {
           code = -1;
         }
       }
-      
+
       if (code != -1 && charLength > 0) {
         buffer.writeCharCode(code);
         currentIndex += charLength;
       } else {
-        print('Decoder Error: Could not parse chunk starting at index $currentIndex. Remaining: ${cleanStr.substring(currentIndex)}');
+        print(
+            'Decoder Error: Could not parse chunk starting at index $currentIndex. Remaining: ${cleanStr.substring(currentIndex)}');
         return encodedStr;
       }
     }
-    
+
     final result = buffer.toString();
-    
+
     if (result.trim().startsWith('{')) {
-      print('SSH Output SUCCESSFULLY DECODED (Variable Length): $result');
       return result;
     }
-    
-    print('Decoder Warning: Decoded string does not start with "{". Result: $result');
+
     return encodedStr;
   }
 
@@ -329,14 +344,12 @@ class _MonitorServerPageState extends State<MonitorServerPage> {
       final decodedStr = _decodeSshOutput(rawOutput);
 
       if (decodedStr.trim().startsWith('{')) {
-          jsonStr = decodedStr;
-      } else {
-          print('Decode failed. Attempting with raw output.');
-      }
-      
+        jsonStr = decodedStr;
+      } else {}
+
       final startIndex = jsonStr.indexOf('{');
       final endIndex = jsonStr.lastIndexOf('}');
-      
+
       if (startIndex == -1 || endIndex == -1) {
         throw Exception("无法解析服务器返回的数据格式，此功能可能不适用于您的服务器");
       }
@@ -345,20 +358,21 @@ class _MonitorServerPageState extends State<MonitorServerPage> {
       final Map<String, dynamic> data = jsonDecode(cleanJson);
 
       final cpuUsageRaw = (data['cpu'] ?? 0).toDouble();
-      data['cpu'] = cpuUsageRaw ; //Raw数据就是正确的
+      data['cpu'] = cpuUsageRaw; //Raw数据就是正确的
 
       if (mounted) {
         setState(() {
           _serverMetrics = ServerMetrics.fromJson(data);
           _errorMessage = '';
+          _firstDataTimeoutTimer?.cancel();
+          _firstDataTimeoutTimer = null;
         });
       }
-
     } catch (e) {
       if (mounted) {
         setState(() {
           _errorMessage = '获取数据失败: $e\n(服务器返回了非标准数据或解码失败)';
-          _stopMonitoring(); 
+          _stopMonitoring();
           _cleanupRemoteScript(); // 清理脚本
           _sshService.disconnect();
           _isMonitoring = false; // 更新状态以改变按钮文本
@@ -389,11 +403,10 @@ class _MonitorServerPageState extends State<MonitorServerPage> {
     );
   }
 
-
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('数据面板'),
@@ -412,7 +425,8 @@ class _MonitorServerPageState extends State<MonitorServerPage> {
                   children: [
                     const Text(
                       '选择服务器连接',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      style:
+                          TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<ConnectionInfo>(
@@ -420,7 +434,7 @@ class _MonitorServerPageState extends State<MonitorServerPage> {
                       decoration: InputDecoration(
                         labelText: '已保存的连接',
                         border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10.0), 
+                          borderRadius: BorderRadius.circular(10.0),
                         ),
                       ),
                       items: [
@@ -437,11 +451,13 @@ class _MonitorServerPageState extends State<MonitorServerPage> {
                         }),
                       ],
                       // 监控中禁止修改连接
-                      onChanged: _isMonitoring ? null : (value) {
-                        setState(() {
-                          _selectedConnection = value;
-                        });
-                      },
+                      onChanged: _isMonitoring
+                          ? null
+                          : (value) {
+                              setState(() {
+                                _selectedConnection = value;
+                              });
+                            },
                     ),
                     const SizedBox(height: 16),
                     if (_errorMessage.isNotEmpty)
@@ -460,73 +476,90 @@ class _MonitorServerPageState extends State<MonitorServerPage> {
                             Expanded(
                               child: Text(
                                 _errorMessage,
-                                style: TextStyle(color: colorScheme.onErrorContainer),
+                                style: TextStyle(
+                                    color: colorScheme.onErrorContainer),
                               ),
                             ),
                           ],
                         ),
                       ),
-                    
                     Row(
                       children: [
                         // 快速连接按钮
                         OutlinedButton(
-                          onPressed: _isMonitoring ? null : _showQuickConnectDialog, // 监控中禁止快速连接
+                          onPressed: _isMonitoring
+                              ? null
+                              : _showQuickConnectDialog, // 监控中禁止快速连接
                           style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+                            padding: const EdgeInsets.symmetric(
+                                vertical: 16, horizontal: 16),
                             side: BorderSide(
-                              color: _isMonitoring ? colorScheme.onSurface.withOpacity(0.12) : colorScheme.outline,
+                              color: _isMonitoring
+                                  ? colorScheme.onSurface.withOpacity(0.12)
+                                  : colorScheme.outline,
                             ),
                           ),
                           child: const Text('快速连接'),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
-                          child: _isMonitoring 
-                            ? ElevatedButton.icon(
-                              onPressed: _isLoading ? null : _handleConnectOrDisconnect, 
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: colorScheme.primary, 
-                                foregroundColor: colorScheme.onPrimary,
-                                padding: const EdgeInsets.symmetric(vertical: 16),
-                              ),
-                              icon: _isLoading
-                                  ? SizedBox(
-                                        width: 16,
-                                        height: 16,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          valueColor: AlwaysStoppedAnimation<Color>(colorScheme.onPrimary), 
-                                        ),
-                                      )
-                                  : const Icon(Icons.stop),
-                              label: Text(
-                                _isLoading ? '连接中...' : '停止监控',
-                                style: const TextStyle(fontSize: 16),
-                              ),
-                            )
-                            : OutlinedButton.icon( 
-                              onPressed: _isLoading || _selectedConnection == null ? null : _handleConnectOrDisconnect, 
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: colorScheme.primary, 
-                                padding: const EdgeInsets.symmetric(vertical: 16),
-                                side: BorderSide(color: colorScheme.primary), 
-                              ),
-                              icon: _isLoading
-                                  ? SizedBox(
-                                        width: 16,
-                                        height: 16,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          valueColor: AlwaysStoppedAnimation<Color>(colorScheme.primary),
-                                        ),
-                                      )
-                                  : const Icon(Icons.play_arrow), 
-                              label: Text(
-                                _isLoading ? '连接中...' : '开始监控',
-                                style: const TextStyle(fontSize: 16),
-                              ),
-                            ),
+                          child: _isMonitoring
+                              ? ElevatedButton.icon(
+                                  onPressed: _isLoading
+                                      ? null
+                                      : _handleConnectOrDisconnect,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: colorScheme.primary,
+                                    foregroundColor: colorScheme.onPrimary,
+                                    padding: const EdgeInsets.symmetric(
+                                        vertical: 16),
+                                  ),
+                                  icon: _isLoading
+                                      ? SizedBox(
+                                          width: 16,
+                                          height: 16,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            valueColor:
+                                                AlwaysStoppedAnimation<Color>(
+                                                    colorScheme.onPrimary),
+                                          ),
+                                        )
+                                      : const Icon(Icons.stop),
+                                  label: Text(
+                                    _isLoading ? '连接中...' : '停止监控',
+                                    style: const TextStyle(fontSize: 16),
+                                  ),
+                                )
+                              : OutlinedButton.icon(
+                                  onPressed:
+                                      _isLoading || _selectedConnection == null
+                                          ? null
+                                          : _handleConnectOrDisconnect,
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: colorScheme.primary,
+                                    padding: const EdgeInsets.symmetric(
+                                        vertical: 16),
+                                    side:
+                                        BorderSide(color: colorScheme.primary),
+                                  ),
+                                  icon: _isLoading
+                                      ? SizedBox(
+                                          width: 16,
+                                          height: 16,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            valueColor:
+                                                AlwaysStoppedAnimation<Color>(
+                                                    colorScheme.primary),
+                                          ),
+                                        )
+                                      : const Icon(Icons.play_arrow),
+                                  label: Text(
+                                    _isLoading ? '连接中...' : '开始监控',
+                                    style: const TextStyle(fontSize: 16),
+                                  ),
+                                ),
                         ),
                       ],
                     ),
@@ -534,78 +567,42 @@ class _MonitorServerPageState extends State<MonitorServerPage> {
                 ),
               ),
             ),
-
             const SizedBox(height: 16),
-
-           
             if (_isMonitoring && _serverMetrics != null)
               Expanded(
-                child: SingleChildScrollView(
-                  child: Column(
-                    children: [
-                     
-                      _buildUptimeCard(_serverMetrics!.uptime),
-                      const SizedBox(height: 12),
-                      
-                      // CPU使用率
-                      _buildAnimatedMetricCard(
-                        title: 'CPU使用率',
-                        currentUsage: _serverMetrics!.cpuUsage,
-                        icon: Icons.memory,
-                       
-                        subtitle: '15分钟负载: ${_serverMetrics!.loadAverage15.toStringAsFixed(2)}%', 
-                      ),
+                  child: SingleChildScrollView(
+                child: Column(
+                  children: [
+                    _buildUptimeCard(_serverMetrics!.uptime),
+                    const SizedBox(height: 12),
 
-                      const SizedBox(height: 12),
+                    // CPU使用率
+                    _buildAnimatedMetricCard(
+                      title: 'CPU使用率',
+                      currentUsage: _serverMetrics!.cpuUsage,
+                      icon: Icons.memory,
+                      subtitle:
+                          '15分钟负载: ${_serverMetrics!.loadAverage15.toStringAsFixed(2)}%',
+                    ),
 
-                      // 内存使用率
-                      _buildAnimatedMetricCard(
-                        title: '内存使用',
-                        currentUsage: _serverMetrics!.memoryUsage,
-                        icon: Icons.sd_storage,
-                        subtitle: '已用: ${_serverMetrics!.memoryUsed.toStringAsFixed(0)} MB /  ${_serverMetrics!.memoryTotal.toStringAsFixed(0)} MB',
-                      ),
+                    const SizedBox(height: 12),
 
-                      const SizedBox(height: 12),
+                    // 内存使用率
+                    _buildAnimatedMetricCard(
+                      title: '内存使用',
+                      currentUsage: _serverMetrics!.memoryUsage,
+                      icon: Icons.sd_storage,
+                      subtitle:
+                          '已用: ${_serverMetrics!.memoryUsed.toStringAsFixed(0)} MB /  ${_serverMetrics!.memoryTotal.toStringAsFixed(0)} MB',
+                    ),
 
-                      // 磁盘使用情况
-                      Card(
-                        child: Padding(
-                          padding: const EdgeInsets.all(16.0),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  
-                                  Icon(Icons.storage, color: colorScheme.primary),
-                                  const SizedBox(width: 8),
-                                  const Text(
-                                    '磁盘使用情况',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 12),
-                              if (_serverMetrics!.diskUsage.isEmpty)
-                                const Text("无磁盘信息"),
-                              ..._serverMetrics!.diskUsage.map((disk) {
-                                final usagePercent = double.tryParse(
-                                  disk.usePercent.replaceAll('%', ''),
-                                ) ?? 0;
-                                return _buildDiskUsageItem(disk, usagePercent);
-                              }),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                )
-              )
+                    const SizedBox(height: 12),
+
+                    // 磁盘使用情况
+                    _buildDiskUsageCard(),
+                  ],
+                ),
+              ))
             else if (_isMonitoring)
               const Expanded(
                 child: Center(
@@ -625,11 +622,16 @@ class _MonitorServerPageState extends State<MonitorServerPage> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.monitor_heart_outlined, size: 64, color: colorScheme.onSurface.withOpacity(0.5)), // 使用主题色
+                      Icon(Icons.monitor_heart_outlined,
+                          size: 64,
+                          color:
+                              colorScheme.onSurface.withOpacity(0.5)), // 使用主题色
                       const SizedBox(height: 16),
                       Text(
                         '请选择一个服务器连接并开始监控',
-                        style: TextStyle(color: colorScheme.onSurface.withOpacity(0.5)), // 使用主题色
+                        style: TextStyle(
+                            color: colorScheme.onSurface
+                                .withOpacity(0.5)), // 使用主题色
                       ),
                     ],
                   ),
@@ -643,16 +645,20 @@ class _MonitorServerPageState extends State<MonitorServerPage> {
 
   Widget _buildUptimeCard(String uptime) {
     final colorScheme = Theme.of(context).colorScheme;
-    
-    return Card(
+
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey, width: 1),
+        color: Colors.transparent,
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
-        child: Column( 
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-               
                 Icon(Icons.timer_outlined, color: colorScheme.primary),
                 const SizedBox(width: 8),
                 const Text(
@@ -662,20 +668,17 @@ class _MonitorServerPageState extends State<MonitorServerPage> {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                const Spacer(), 
+                const Spacer(),
               ],
             ),
-            
             const SizedBox(height: 8),
-
-            
             Text(
               uptime,
               textAlign: TextAlign.start,
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
-                color: colorScheme.onSurface, 
+                color: colorScheme.onSurface,
               ),
             ),
           ],
@@ -700,8 +703,13 @@ class _MonitorServerPageState extends State<MonitorServerPage> {
       builder: (context, value, child) {
         final animatedValue = value.toStringAsFixed(1);
         final animatedProgressValue = (value / 100).clamp(0.0, 1.0);
-        
-        return Card(
+
+        return Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.grey, width: 1),
+            color: Colors.transparent,
+          ),
           child: Padding(
             padding: const EdgeInsets.all(16.0),
             child: Column(
@@ -745,8 +753,9 @@ class _MonitorServerPageState extends State<MonitorServerPage> {
                 ClipRRect(
                   borderRadius: BorderRadius.circular(4),
                   child: LinearProgressIndicator(
-                    value: animatedProgressValue, // Flutter 的 LinearProgressIndicator 自带动画效果
-                    backgroundColor: colorScheme.surfaceVariant,
+                    value:
+                        animatedProgressValue, // Flutter 的 LinearProgressIndicator 自带动画效果
+                    backgroundColor: colorScheme.surfaceContainerHighest,
                     valueColor: AlwaysStoppedAnimation<Color>(color),
                     minHeight: 8,
                   ),
@@ -756,6 +765,48 @@ class _MonitorServerPageState extends State<MonitorServerPage> {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildDiskUsageCard() {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey, width: 1),
+        color: Colors.transparent,
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.storage, color: colorScheme.primary),
+                const SizedBox(width: 8),
+                const Text(
+                  '磁盘使用情况',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (_serverMetrics!.diskUsage.isEmpty) const Text("无磁盘信息"),
+            ..._serverMetrics!.diskUsage.map((disk) {
+              final usagePercent = double.tryParse(
+                    disk.usePercent.replaceAll('%', ''),
+                  ) ??
+                  0;
+              return _buildDiskUsageItem(disk, usagePercent);
+            }),
+          ],
+        ),
+      ),
     );
   }
 
@@ -790,7 +841,7 @@ class _MonitorServerPageState extends State<MonitorServerPage> {
               borderRadius: BorderRadius.circular(4),
               child: LinearProgressIndicator(
                 value: value,
-                backgroundColor: colorScheme.surfaceVariant,
+                backgroundColor: colorScheme.surfaceContainerHighest,
                 valueColor: AlwaysStoppedAnimation<Color>(color),
                 minHeight: 8,
               ),
@@ -805,7 +856,7 @@ class _MonitorServerPageState extends State<MonitorServerPage> {
   Color _getColorByUsage(BuildContext context, double usage) {
     final colorScheme = Theme.of(context).colorScheme;
     if (usage < 70) return colorScheme.primary;
-    if (usage < 85) return colorScheme.secondary; 
-    return colorScheme.error; 
+    if (usage < 85) return colorScheme.secondary;
+    return colorScheme.error;
   }
 }

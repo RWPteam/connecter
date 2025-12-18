@@ -21,6 +21,19 @@ class _ManageConnectionsPageState extends State<ManageConnectionsPage> {
   final _storageService = StorageService();
   List<ConnectionInfo> _connections = [];
   bool _isConnecting = false;
+  final _uuid = const Uuid();
+
+  bool _canDuplicate(ConnectionInfo current) {
+    final targetType = current.type == ConnectionType.ssh
+        ? ConnectionType.sftp
+        : ConnectionType.ssh;
+
+    return !_connections.any((c) =>
+        c.host == current.host &&
+        c.port == current.port &&
+        c.credentialId == current.credentialId &&
+        c.type == targetType);
+  }
 
   @override
   void initState() {
@@ -40,6 +53,32 @@ class _ManageConnectionsPageState extends State<ManageConnectionsPage> {
       context: context,
       builder: (context) => QuickConnectDialog(connection: connection),
     ).then((_) => _loadConnections());
+  }
+
+  Future<void> _duplicateConnection(ConnectionInfo connection) async {
+    final targetType = connection.type == ConnectionType.ssh
+        ? ConnectionType.sftp
+        : ConnectionType.ssh;
+
+    final typeName = targetType == ConnectionType.ssh ? 'SSH' : 'SFTP';
+
+    final newConnection = ConnectionInfo(
+      id: _uuid.v4(), // 生成新的唯一ID
+      name: '${connection.name}',
+      host: connection.host,
+      port: connection.port,
+      type: targetType,
+      credentialId: connection.credentialId, remember: true,
+    );
+
+    await _storageService.saveConnection(newConnection);
+    await _loadConnections(); // 重新加载列表
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('已成功复制为 $typeName 连接')),
+      );
+    }
   }
 
   void _deleteConnection(ConnectionInfo connection) {
@@ -73,7 +112,7 @@ class _ManageConnectionsPageState extends State<ManageConnectionsPage> {
 
   void _connectTo(ConnectionInfo connection) async {
     if (_isConnecting) return;
-    
+
     setState(() {
       _isConnecting = true;
     });
@@ -97,7 +136,7 @@ class _ManageConnectionsPageState extends State<ManageConnectionsPage> {
     try {
       final storageService = StorageService();
       final sshService = SshService();
-      
+
       final credentials = await storageService.getCredentials();
       final credential = credentials.firstWhere(
         (c) => c.id == connection.credentialId,
@@ -105,11 +144,12 @@ class _ManageConnectionsPageState extends State<ManageConnectionsPage> {
       );
 
       // 设置3秒超时
-      await sshService.connect(connection, credential)
+      await sshService
+          .connect(connection, credential)
           .timeout(const Duration(seconds: 3), onTimeout: () {
         throw TimeoutException('连接超时，请检查网络或主机是否可达');
       });
-      
+
       unawaited(storageService.addRecentConnection(connection));
 
       if (mounted) {
@@ -137,10 +177,9 @@ class _ManageConnectionsPageState extends State<ManageConnectionsPage> {
           );
         }
       }
-
     } on TimeoutException catch (e) {
       if (mounted) {
-        Navigator.of(context).pop(); 
+        Navigator.of(context).pop();
         showDialog(
           context: context,
           builder: (context) => AlertDialog(
@@ -186,9 +225,9 @@ class _ManageConnectionsPageState extends State<ManageConnectionsPage> {
 
   void _showNewConnectionDialog() {
     showDialog(
-      context: context, 
+      context: context,
       builder: (context) => const QuickConnectDialog(isNewConnection: true),
-    ).then((_) => _loadConnections());  
+    ).then((_) => _loadConnections());
   }
 
   @override
@@ -197,67 +236,123 @@ class _ManageConnectionsPageState extends State<ManageConnectionsPage> {
       appBar: AppBar(
         title: const Text('管理连接'),
         actions: [
-          Container(
-            margin: const EdgeInsets.only(right: 10),
-            child: IconButton(
-              onPressed: _showNewConnectionDialog,
-              icon: const Icon(Icons.add),
-            ),
+          IconButton(
+            onPressed: _showNewConnectionDialog,
+            icon: const Icon(Icons.add),
           ),
         ],
       ),
       body: _connections.isEmpty
-          ? const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.no_encryption_outlined, size: 64, color: Colors.grey),
-                  SizedBox(height: 16),
-                  Text('暂无保存的连接', style: TextStyle(fontSize: 16)),
-                  SizedBox(height: 8),
-                  Text(
-                    '点击右上角 + 按钮添加新的连接',
-                    style: TextStyle(color: Colors.grey),
-                  ),
-                ],
-              ),
-            )
+          ? _buildEmptyState()
           : ListView.builder(
               itemCount: _connections.length,
               itemBuilder: (context, index) {
                 final connection = _connections[index];
-                return Card(
-                  margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                  child: ListTile(
-                    leading: const Icon(Icons.computer),
-                    title: Text(connection.name),
-                    subtitle: Text(
-                      '${connection.host}:${connection.port} - ${connection.type.displayName}',
+                final canDup = _canDuplicate(connection);
+
+                return Container(
+                  margin:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.transparent,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: Colors.grey,
+                      width: 1,
                     ),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          onPressed: _isConnecting ? null : () => _connectTo(connection),
-                          icon: const Icon(Icons.play_arrow),
-                          tooltip: '连接',
-                        ),
-                        IconButton(
-                          onPressed: _isConnecting ? null : () => _editConnection(connection),
-                          icon: const Icon(Icons.edit),
-                          tooltip: '编辑',
-                        ),
-                        IconButton(
-                          onPressed: _isConnecting ? null : () => _deleteConnection(connection),
-                          icon: const Icon(Icons.delete),
-                          tooltip: '删除',
-                        ),
-                      ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: ListTile(
+                      leading: Icon(
+                        connection.type == ConnectionType.ssh
+                            ? Icons.terminal
+                            : Icons.folder_shared,
+                      ),
+                      title: Text(
+                        connection.name,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      subtitle: Text(
+                        '${connection.host}:${connection.port}',
+                        style: TextStyle(color: Colors.grey[600]),
+                      ),
+                      trailing: PopupMenuButton<String>(
+                        onSelected: (value) {
+                          switch (value) {
+                            case 'connect':
+                              _connectTo(connection);
+                              break;
+                            case 'duplicate':
+                              _duplicateConnection(connection);
+                              break;
+                            case 'edit':
+                              _editConnection(connection);
+                              break;
+                            case 'delete':
+                              _deleteConnection(connection);
+                              break;
+                          }
+                        },
+                        itemBuilder: (context) => [
+                          const PopupMenuItem(
+                            value: 'connect',
+                            child: ListTile(
+                              title: Text('连接'),
+                              contentPadding: EdgeInsets.zero,
+                              dense: true,
+                            ),
+                          ),
+                          PopupMenuItem(
+                            value: 'duplicate',
+                            enabled: canDup, // 如果已存在则禁用
+                            child: ListTile(
+                              title: Text(connection.type == ConnectionType.ssh
+                                  ? '复制为 SFTP'
+                                  : '复制为 SSH'),
+                              contentPadding: EdgeInsets.zero,
+                              dense: true,
+                            ),
+                          ),
+                          const PopupMenuItem(
+                            value: 'edit',
+                            child: ListTile(
+                              title: Text('编辑'),
+                              contentPadding: EdgeInsets.zero,
+                              dense: true,
+                            ),
+                          ),
+                          const PopupMenuItem(
+                            value: 'delete',
+                            child: ListTile(
+                              title: Text('删除',
+                                  style: TextStyle(color: Colors.red)),
+                              contentPadding: EdgeInsets.zero,
+                              dense: true,
+                            ),
+                          ),
+                        ],
+                      ),
+                      onTap: () => _connectTo(connection),
                     ),
                   ),
                 );
-              },
-            ),
+              }),
+    );
+  }
+
+  // 抽离空状态 UI
+  Widget _buildEmptyState() {
+    return const Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.no_encryption_outlined, size: 64, color: Colors.grey),
+          SizedBox(height: 16),
+          Text('暂无保存的连接', style: TextStyle(fontSize: 16)),
+          Text('点击右上角 + 按钮添加新的连接', style: TextStyle(color: Colors.grey)),
+        ],
+      ),
     );
   }
 }
