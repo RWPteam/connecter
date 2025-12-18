@@ -390,7 +390,6 @@ class _MonitorServerPageState extends State<MonitorServerPage> {
     });
   }
 
-  // 调整 _showError 以使用主题色
   void _showError(String message) {
     if (!mounted) return;
     final colorScheme = Theme.of(context).colorScheme;
@@ -406,11 +405,28 @@ class _MonitorServerPageState extends State<MonitorServerPage> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final Map<String, ConnectionInfo> uniqueMap = {};
+    for (var conn in _savedConnections) {
+      final String key =
+          '${conn.name}-${conn.host}-${conn.port}-${conn.credentialId}';
 
+      if (!uniqueMap.containsKey(key)) {
+        uniqueMap[key] = conn;
+      }
+    }
+    final List<ConnectionInfo> filteredConnections = uniqueMap.values.toList();
+
+    if (_selectedConnection != null &&
+        !filteredConnections.contains(_selectedConnection)) {
+      // 尝试寻找标识一致的那个
+      final String selectedKey =
+          '${_selectedConnection!.name}-${_selectedConnection!.host}-${_selectedConnection!.port}-${_selectedConnection!.credentialId}';
+      _selectedConnection = uniqueMap[selectedKey] ??
+          (filteredConnections.isNotEmpty ? filteredConnections.first : null);
+    }
     return Scaffold(
       appBar: AppBar(
         title: const Text('数据面板'),
-        // 移除右上角的停止按钮
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -438,12 +454,12 @@ class _MonitorServerPageState extends State<MonitorServerPage> {
                         ),
                       ),
                       items: [
-                        if (_savedConnections.isEmpty)
+                        if (filteredConnections.isEmpty)
                           const DropdownMenuItem(
                             value: null,
                             child: Text('请选择连接'),
                           ),
-                        ..._savedConnections.map((connection) {
+                        ...filteredConnections.map((connection) {
                           return DropdownMenuItem(
                             value: connection,
                             child: Text(connection.name),
@@ -463,7 +479,7 @@ class _MonitorServerPageState extends State<MonitorServerPage> {
                     if (_errorMessage.isNotEmpty)
                       Container(
                         padding: const EdgeInsets.all(12),
-                        margin: const EdgeInsets.only(bottom: 16), // 增加底部边距
+                        margin: const EdgeInsets.only(bottom: 16),
                         decoration: BoxDecoration(
                           color: colorScheme.errorContainer,
                           borderRadius: BorderRadius.circular(8),
@@ -624,14 +640,12 @@ class _MonitorServerPageState extends State<MonitorServerPage> {
                     children: [
                       Icon(Icons.monitor_heart_outlined,
                           size: 64,
-                          color:
-                              colorScheme.onSurface.withOpacity(0.5)), // 使用主题色
+                          color: colorScheme.onSurface.withOpacity(0.5)),
                       const SizedBox(height: 16),
                       Text(
                         '请选择一个服务器连接并开始监控',
                         style: TextStyle(
-                            color: colorScheme.onSurface
-                                .withOpacity(0.5)), // 使用主题色
+                            color: colorScheme.onSurface.withOpacity(0.5)),
                       ),
                     ],
                   ),
@@ -741,7 +755,6 @@ class _MonitorServerPageState extends State<MonitorServerPage> {
                   const SizedBox(height: 8),
                   Text(
                     subtitle,
-                    // 使用主题色替换 Colors.grey
                     style: TextStyle(
                       fontSize: 12,
                       color: colorScheme.onSurfaceVariant,
@@ -749,7 +762,6 @@ class _MonitorServerPageState extends State<MonitorServerPage> {
                   ),
                 ],
                 const SizedBox(height: 8),
-                // 使用 ClipRRect 来隐式地对进度条颜色和值进行动画
                 ClipRRect(
                   borderRadius: BorderRadius.circular(4),
                   child: LinearProgressIndicator(

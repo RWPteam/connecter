@@ -26,7 +26,6 @@ class TerminalPage extends StatefulWidget {
 const int _maxSessions = 2;
 
 class _TerminalPageState extends State<TerminalPage> {
-  // --- 状态重构：使用 List 管理多个会话 ---
   late final List<Terminal> _terminals;
   final List<SSHClient?> _sshClients = List.filled(_maxSessions, null);
   final List<SSHSession?> _sessions = List.filled(_maxSessions, null);
@@ -36,10 +35,8 @@ class _TerminalPageState extends State<TerminalPage> {
   final List<StreamSubscription?> _stdoutSubs = List.filled(_maxSessions, null);
   final List<StreamSubscription?> _stderrSubs = List.filled(_maxSessions, null);
 
-  int _activeIndex = 0; // 当前显示的会话索引 (0 或 1)
-  bool _isMultiWindowMode = false; // 是否开启了多窗口模式
-
-  // 快捷获取当前活跃对象的 Getter
+  int _activeIndex = 0;
+  bool _isMultiWindowMode = false;
   Terminal get terminal => _terminals[_activeIndex];
   SSHSession? get _session => _sessions[_activeIndex];
   bool get _isConnected => _isConnecteds[_activeIndex];
@@ -68,7 +65,6 @@ class _TerminalPageState extends State<TerminalPage> {
   TerminalTheme _currentTheme = TerminalThemes.defaultTheme;
 
   bool get _shouldBeReadOnly {
-    // 当菜单或滑块打开时，设为只读以防止误触
     return !_isConnected ||
         _menuIsOpen ||
         _isSliderVisible ||
@@ -180,7 +176,7 @@ class _TerminalPageState extends State<TerminalPage> {
 
       t.write('\x1B[2J\x1B[1;1H');
       t.buffer.clear();
-      t.write('连接到 SSH-${widget.connection.name}-${index + 1} 成功\r\n');
+      t.write('连接到 ${widget.connection.name}-${index + 1} 成功\r\n');
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -585,7 +581,7 @@ class _TerminalPageState extends State<TerminalPage> {
   @override
   Widget build(BuildContext context) {
     String displayTitle = _isMultiWindowMode
-        ? "SSH-${widget.connection.name}-${_activeIndex + 1}"
+        ? "${widget.connection.name}-${_activeIndex + 1}"
         : widget.connection.name;
     return Scaffold(
       resizeToAvoidBottomInset: true,
@@ -593,7 +589,7 @@ class _TerminalPageState extends State<TerminalPage> {
         backgroundColor: _getAppBarColor(),
         foregroundColor: Colors.white,
         title: InkWell(
-          // 点击标题也可以快速切换（可选）
+          // 点击标题也可以快速切换
           onTap: _isMultiWindowMode
               ? () => setState(() => _activeIndex = _activeIndex == 0 ? 1 : 0)
               : null,
@@ -609,7 +605,7 @@ class _TerminalPageState extends State<TerminalPage> {
           ),
         ),
         actions: [
-          // 切换按钮：只有在多窗口模式下显示
+          // 切换按钮只有在多窗口模式下显示
           if (_isMultiWindowMode)
             IconButton(
               icon: const Icon(Icons.swap_horiz),

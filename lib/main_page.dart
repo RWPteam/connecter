@@ -2,6 +2,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:ConnSSH/monitor_server_page.dart';
+import 'package:ConnSSH/read_key_info_page.dart';
 import 'package:ConnSSH/setting_page.dart';
 import 'package:flutter/material.dart';
 import 'manage_connections_page.dart';
@@ -361,15 +362,7 @@ class _MainPageState extends State<MainPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Padding(
-              padding: const EdgeInsets.only(bottom: 24.0),
-              child: Text(
-                '连接管理',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-              ),
-            ),
+            // 移除小屏模式下的"连接管理"标题
             Expanded(
               child: SingleChildScrollView(
                 child: Column(
@@ -587,7 +580,6 @@ class _MainPageState extends State<MainPage> {
                           value: 'connect',
                           child: Row(
                             children: [
-                              SizedBox(width: 8),
                               Text('连接'),
                             ],
                           ),
@@ -596,7 +588,6 @@ class _MainPageState extends State<MainPage> {
                           value: 'pin',
                           child: Row(
                             children: [
-                              const SizedBox(width: 8),
                               Text(connection.isPinned ? '取消置顶' : '置顶'),
                             ],
                           ),
@@ -605,7 +596,6 @@ class _MainPageState extends State<MainPage> {
                           value: 'save',
                           child: Row(
                             children: [
-                              SizedBox(width: 8),
                               Text('保存该连接'),
                             ],
                           ),
@@ -614,7 +604,6 @@ class _MainPageState extends State<MainPage> {
                           value: 'delete',
                           child: Row(
                             children: [
-                              SizedBox(width: 8),
                               Text('删除', style: TextStyle(color: Colors.red)),
                             ],
                           ),
@@ -675,7 +664,6 @@ class _MainPageState extends State<MainPage> {
             value: 'connect',
             child: Row(
               children: [
-                SizedBox(width: 8),
                 Text('连接'),
               ],
             ),
@@ -684,7 +672,6 @@ class _MainPageState extends State<MainPage> {
             value: 'pin',
             child: Row(
               children: [
-                const SizedBox(width: 8),
                 Text(connection.isPinned ? '取消置顶' : '置顶'),
               ],
             ),
@@ -693,7 +680,6 @@ class _MainPageState extends State<MainPage> {
             value: 'save',
             child: Row(
               children: [
-                SizedBox(width: 8),
                 Text('保存该连接'),
               ],
             ),
@@ -702,7 +688,6 @@ class _MainPageState extends State<MainPage> {
             value: 'delete',
             child: Row(
               children: [
-                SizedBox(width: 8),
                 Text('删除', style: TextStyle(color: Colors.red)),
               ],
             ),
@@ -967,44 +952,15 @@ class _MainPageState extends State<MainPage> {
       ),
       const SizedBox(height: 16),
       buildButton(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const MonitorServerPage(),
-            ),
-          );
-        },
-        title: '数据面板',
-        subtitle: '监控服务器的CPU、内存等数据',
+        onPressed: _showManagementOptions,
+        title: '管理信息',
+        subtitle: '管理连接配置和认证凭证',
       ),
       const SizedBox(height: 16),
       buildButton(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const ManageConnectionsPage(),
-            ),
-          ).then((_) {
-            _loadRecentConnections();
-          });
-        },
-        title: '管理已保存的连接',
-        subtitle: '查看和编辑所有保存的连接配置',
-      ),
-      const SizedBox(height: 16),
-      buildButton(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const ManageCredentialsPage(),
-            ),
-          );
-        },
-        title: '管理认证凭证',
-        subtitle: '管理密码和证书凭证',
+        onPressed: _showUtilityTools,
+        title: '实用工具',
+        subtitle: '服务器数据面板和密钥/证书解析工具',
       ),
       const SizedBox(height: 16),
       buildButton(
@@ -1018,5 +974,135 @@ class _MainPageState extends State<MainPage> {
         subtitle: "查看设置、使用说明和版本信息",
       ),
     ];
+  }
+
+  void _showManagementOptions() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('管理信息'),
+          content: const Text('请选择：'),
+          actions: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const ManageConnectionsPage(),
+                          ),
+                        ).then((_) {
+                          _loadRecentConnections();
+                        });
+                      },
+                      label: const Text('保存的连接'),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const ManageCredentialsPage(),
+                          ),
+                        );
+                      },
+                      label: const Text('保存的凭证'),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('取消'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showUtilityTools() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('实用工具'),
+          content: const Text('请选择：'),
+          actions: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const MonitorServerPage(),
+                          ),
+                        );
+                      },
+                      label: const Text('数据面板'),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const ReadKeyInfoPage(),
+                          ),
+                        );
+                      },
+                      label: const Text('密钥/证书解析'),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('取消'),
+            ),
+          ],
+        );
+      },
+    );
   }
 }

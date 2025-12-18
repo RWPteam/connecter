@@ -299,8 +299,6 @@ class _ManageConnectionsPageState extends State<ManageConnectionsPage> {
                             value: 'connect',
                             child: ListTile(
                               title: Text('连接'),
-                              contentPadding: EdgeInsets.zero,
-                              dense: true,
                             ),
                           ),
                           PopupMenuItem(
@@ -310,16 +308,12 @@ class _ManageConnectionsPageState extends State<ManageConnectionsPage> {
                               title: Text(connection.type == ConnectionType.ssh
                                   ? '复制为 SFTP'
                                   : '复制为 SSH'),
-                              contentPadding: EdgeInsets.zero,
-                              dense: true,
                             ),
                           ),
                           const PopupMenuItem(
                             value: 'edit',
                             child: ListTile(
                               title: Text('编辑'),
-                              contentPadding: EdgeInsets.zero,
-                              dense: true,
                             ),
                           ),
                           const PopupMenuItem(
@@ -327,8 +321,6 @@ class _ManageConnectionsPageState extends State<ManageConnectionsPage> {
                             child: ListTile(
                               title: Text('删除',
                                   style: TextStyle(color: Colors.red)),
-                              contentPadding: EdgeInsets.zero,
-                              dense: true,
                             ),
                           ),
                         ],
@@ -341,7 +333,6 @@ class _ManageConnectionsPageState extends State<ManageConnectionsPage> {
     );
   }
 
-  // 抽离空状态 UI
   Widget _buildEmptyState() {
     return const Center(
       child: Column(

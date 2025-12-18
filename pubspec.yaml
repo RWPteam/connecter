@@ -66,6 +66,7 @@ dependencies:
       url: "https://gitcode.com/openharmony-sig/flutter_permission_handler.git"
       path: permission_handler
   path_provider_platform_interface: ^2.1.2
+  basic_utils: ^5.7.0
 
 dev_dependencies:
   flutter_test:

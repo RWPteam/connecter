@@ -139,7 +139,6 @@ class _ManageCredentialsPageState extends State<ManageCredentialsPage> {
                         ],
                       ),
                       trailing: PopupMenuButton<String>(
-                        // ... 保持原有的 PopupMenuButton 代码不变
                         onSelected: (value) {
                           if (value == 'edit') {
                             _editCredential(credential);
@@ -152,8 +151,6 @@ class _ManageCredentialsPageState extends State<ManageCredentialsPage> {
                             value: 'edit',
                             child: ListTile(
                               title: Text('编辑'),
-                              contentPadding: EdgeInsets.zero,
-                              dense: true,
                             ),
                           ),
                           const PopupMenuItem(
@@ -161,8 +158,6 @@ class _ManageCredentialsPageState extends State<ManageCredentialsPage> {
                             child: ListTile(
                               title: Text('删除',
                                   style: TextStyle(color: Colors.red)),
-                              contentPadding: EdgeInsets.zero,
-                              dense: true,
                             ),
                           ),
                         ],
