@@ -1,23 +1,40 @@
+// app_settings_model.dart
 class AppSettings {
   final String? defaultSftpPath;
   final String? defaultDownloadPath;
   final bool isFirstRun;
+  final double defaultFontSize;
+  final String defaultTermTheme;
+  final String termType;
+  final String defaultPageTheme; // 改为final String
 
   const AppSettings({
     this.defaultSftpPath,
     this.defaultDownloadPath,
-    this.isFirstRun = true, // 默认值为 true，表示第一次运行
+    this.isFirstRun = true,
+    this.defaultFontSize = 12.0,
+    this.defaultTermTheme = 'dark',
+    this.termType = 'xterm-256color',
+    this.defaultPageTheme = 'default', // 默认主题
   });
 
   AppSettings copyWith({
     String? defaultSftpPath,
     String? defaultDownloadPath,
     bool? isFirstRun,
+    double? defaultFontSize,
+    String? defaultTermTheme,
+    String? termType,
+    String? defaultPageTheme, // 添加这个参数
   }) {
     return AppSettings(
       defaultSftpPath: defaultSftpPath ?? this.defaultSftpPath,
       defaultDownloadPath: defaultDownloadPath ?? this.defaultDownloadPath,
       isFirstRun: isFirstRun ?? this.isFirstRun,
+      defaultFontSize: defaultFontSize ?? this.defaultFontSize,
+      defaultTermTheme: defaultTermTheme ?? this.defaultTermTheme,
+      termType: termType ?? this.termType,
+      defaultPageTheme: defaultPageTheme ?? this.defaultPageTheme, // 复制这个字段
     );
   }
 
@@ -26,6 +43,10 @@ class AppSettings {
       'defaultSftpPath': defaultSftpPath,
       'defaultDownloadPath': defaultDownloadPath,
       'isFirstRun': isFirstRun,
+      'defaultFontSize': defaultFontSize,
+      'defaultTermTheme': defaultTermTheme,
+      'termType': termType,
+      'defaultPageTheme': defaultPageTheme, // 添加到map
     };
   }
 
@@ -33,7 +54,11 @@ class AppSettings {
     return AppSettings(
       defaultSftpPath: map['defaultSftpPath'],
       defaultDownloadPath: map['defaultDownloadPath'],
-      isFirstRun: map['isFirstRun'] ?? true, // 如果不存在则默认为 true
+      isFirstRun: map['isFirstRun'] ?? true,
+      defaultFontSize: map['defaultFontSize']?.toDouble() ?? 12.0,
+      defaultTermTheme: map['defaultTermTheme'] ?? 'dark',
+      termType: map['termType'] ?? 'xterm-256color',
+      defaultPageTheme: map['defaultPageTheme'] ?? 'default', // 从map读取
     );
   }
 
@@ -42,6 +67,10 @@ class AppSettings {
       defaultSftpPath: '/',
       defaultDownloadPath: null,
       isFirstRun: true,
+      defaultFontSize: 12.0,
+      defaultTermTheme: 'dark',
+      termType: 'xterm-256color',
+      defaultPageTheme: 'default',
     );
   }
 }

@@ -168,6 +168,7 @@ class _QuickConnectDialogState extends State<QuickConnectDialog> {
       }
       if (mounted) {
         Navigator.of(context).pop();
+        Navigator.of(context).pop();
       }
 
       if (mounted) {

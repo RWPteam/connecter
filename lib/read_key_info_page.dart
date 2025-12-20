@@ -1,3 +1,5 @@
+// ignore_for_file: unused_field
+
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
@@ -44,19 +46,18 @@ class _ReadKeyInfoPageState extends State<ReadKeyInfoPage> {
 
         var data = X509Utils.x509CertificateFromPem(trimmed);
 
-        // 1. 优化主体获取：优先获取 CN，否则拼接完整信息
         String getReadableName(Map<String, dynamic> dnMap) {
           if (dnMap.containsKey('CN') && dnMap['CN'] != null) {
             return dnMap['CN'].toString();
+          } else {
+            // 如果没有 CN，则把所有的 key-value 拼起来 (如 C=CN, O=Google...)
+            return dnMap.entries.map((e) => "${e.key}=${e.value}").join(", ");
           }
-          // 如果没有 CN，则把所有的 key-value 拼起来 (如 C=CN, O=Google...)
-          return dnMap.entries.map((e) => "${e.key}=${e.value}").join(", ");
         }
 
         info["主体"] = getReadableName(data.subject);
         info["颁发者"] = getReadableName(data.issuer);
 
-        // 2. 时间解析
         DateTime notBefore = data.validity.notBefore;
         DateTime notAfter = data.validity.notAfter;
         info["生效时间"] = notBefore.toLocal().toString().split('.')[0];
@@ -65,15 +66,13 @@ class _ReadKeyInfoPageState extends State<ReadKeyInfoPage> {
         bool isExpired = DateTime.now().isAfter(notAfter);
         info["状态"] = isExpired ? "已过期" : "有效中";
 
-        // 3. 签名算法 OID 转换
-        String sigOid = data.signatureAlgorithm ?? "";
+        String sigOid = data.signatureAlgorithm;
         info["签名算法"] = oidMap[sigOid] ?? sigOid; // 找不到映射则显示原始 OID
       } else if (trimmed.contains("BEGIN RSA PRIVATE KEY") ||
           trimmed.contains("BEGIN PRIVATE KEY")) {
         info["类型"] = "私钥 (Private Key)";
         info["格式"] = trimmed.contains("RSA") ? "PKCS#1" : "PKCS#8";
       }
-      // ... 其他分支逻辑保持不变
     } catch (e) {
       info["解析状态"] = "证书结构解析失败";
       info["详情"] = "错误原因: $e";

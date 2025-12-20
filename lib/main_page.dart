@@ -1,9 +1,9 @@
 // ignore_for_file: use_build_context_synchronously
 import 'dart:async';
 import 'dart:io';
-import 'package:ConnSSH/monitor_server_page.dart';
-import 'package:ConnSSH/read_key_info_page.dart';
-import 'package:ConnSSH/setting_page.dart';
+import 'package:connssh/monitor_server_page.dart';
+import 'package:connssh/read_key_info_page.dart';
+import 'package:connssh/setting_page.dart';
 import 'package:flutter/material.dart';
 import 'manage_connections_page.dart';
 import 'manage_credentials_page.dart';
@@ -19,7 +19,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter/services.dart';
 
 class NativeBridge {
-  static const platform = MethodChannel('com.samuioto.ConnSSH/native');
+  static const platform = MethodChannel('com.samuioto.connssh/native');
 
   Future<String> getNativeMessage() async {
     try {
@@ -33,7 +33,10 @@ class NativeBridge {
 }
 
 class MainPage extends StatefulWidget {
-  const MainPage({super.key});
+  const MainPage(
+      {super.key,
+      required void Function() onSettingsChanged,
+      required SettingsService settingsService});
 
   @override
   State<MainPage> createState() => _MainPageState();
@@ -167,7 +170,7 @@ class _MainPageState extends State<MainPage> {
         context: context,
         barrierDismissible: false,
         builder: (context) => AlertDialog(
-          title: const Text('欢迎使用ConnSSH'),
+          title: const Text('欢迎使用connssh'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -309,7 +312,7 @@ class _MainPageState extends State<MainPage> {
     if (!_permissionsGranted) {
       return Scaffold(
         appBar: AppBar(
-          title: const Text('ConnSSH'),
+          title: const Text('connssh'),
           backgroundColor: Colors.transparent,
           elevation: 0,
           foregroundColor: Theme.of(context).colorScheme.onSurface,
@@ -321,7 +324,7 @@ class _MainPageState extends State<MainPage> {
     }
     return Scaffold(
       appBar: AppBar(
-        title: const Text('ConnSSH'),
+        title: const Text('connssh'),
         //backgroundColor: Colors.transparent,
         //elevation: 0,
         //foregroundColor: Theme.of(context).colorScheme.onSurface,
@@ -496,22 +499,11 @@ class _MainPageState extends State<MainPage> {
                                 itemCount: _recentConnections.length,
                                 itemBuilder: (context, index) {
                                   final connection = _recentConnections[index];
-                                  return Container(
-                                    height: 100,
-                                    margin: const EdgeInsets.only(bottom: 16),
-                                    decoration: BoxDecoration(
-                                      border: Border.all(
-                                        color: Colors.grey,
-                                        width: 1,
-                                      ),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: _buildConnectionTile(
-                                        context, connection),
-                                  );
+                                  return _buildConnectionTile(
+                                      context, connection, showButtonSubtitle);
                                 },
                               ),
-                            ),
+                            )
                 ],
               ),
             ),
@@ -620,87 +612,146 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
-  Widget _buildConnectionTile(BuildContext context, ConnectionInfo connection) {
+  Widget _buildConnectionTile(
+      BuildContext context, ConnectionInfo connection, bool isLargeHeight) {
     final isConnectingThis =
         _isConnecting && _connectingConnection?.id == connection.id;
 
-    return ListTile(
-      leading: Stack(
-        children: [
-          Icon(
-            connection.isPinned
-                ? Icons.vertical_align_top
-                : _getConnectionIcon(connection.type),
-            color: Colors.grey,
-          ),
-        ],
+    // 根据屏幕高度动态调整容器高度
+    final double containerHeight = isLargeHeight ? 100 : 80;
+    // 根据屏幕高度动态调整字体大小
+    final double titleFontSize = isLargeHeight ? 16 : 14;
+    final double subtitleFontSize = isLargeHeight ? 14 : 12;
+
+    return Container(
+      height: containerHeight,
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        border: Border.all(
+          color: Colors.grey,
+          width: 1,
+        ),
+        borderRadius: BorderRadius.circular(12),
       ),
-      title: Row(
-        children: [
-          Expanded(
-            child: Text(
-              connection.name,
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: isConnectingThis ? Colors.grey : null,
-              ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () {
+            _connectTo(connection);
+          },
+          child: Container(
+            padding: EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: isLargeHeight ? 16 : 8, // 根据高度调整垂直内边距
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center, // 垂直居中对齐
+              children: [
+                // 左侧图标
+                Container(
+                  width: 40,
+                  alignment: Alignment.center,
+                  child: Icon(
+                    connection.isPinned
+                        ? Icons.vertical_align_top
+                        : _getConnectionIcon(connection.type),
+                    color: Colors.grey,
+                    size: isLargeHeight ? 24 : 20,
+                  ),
+                ),
+
+                const SizedBox(width: 12),
+
+                // 中间文字内容
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center, // 垂直居中
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // 标题
+                      Text(
+                        connection.name,
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: titleFontSize,
+                          color: isConnectingThis ? Colors.grey : null,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+
+                      // 副标题
+                      if (isLargeHeight) // 只有在高度足够时才显示副标题
+                        const SizedBox(height: 4),
+                      if (isLargeHeight)
+                        Text(
+                          '${connection.host}:${connection.port} - ${connection.type.displayName}',
+                          style: TextStyle(
+                            fontSize: subtitleFontSize,
+                            color: isConnectingThis ? Colors.grey : Colors.grey,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                    ],
+                  ),
+                ),
+
+                // 右侧菜单按钮
+                PopupMenuButton<String>(
+                  icon: Icon(
+                    Icons.more_vert,
+                    color: Colors.grey,
+                    size: isLargeHeight ? 24 : 20,
+                  ),
+                  onSelected: (value) {
+                    _handleMenuAction(value, connection);
+                  },
+                  itemBuilder: (BuildContext context) => [
+                    const PopupMenuItem<String>(
+                      value: 'connect',
+                      child: Row(
+                        children: [
+                          SizedBox(width: 8),
+                          Text('连接'),
+                        ],
+                      ),
+                    ),
+                    PopupMenuItem<String>(
+                      value: 'pin',
+                      child: Row(
+                        children: [
+                          SizedBox(width: 8),
+                          Text(connection.isPinned ? '取消置顶' : '置顶'),
+                        ],
+                      ),
+                    ),
+                    const PopupMenuItem<String>(
+                      value: 'save',
+                      child: Row(
+                        children: [
+                          SizedBox(width: 8),
+                          Text('保存该连接'),
+                        ],
+                      ),
+                    ),
+                    const PopupMenuItem<String>(
+                      value: 'delete',
+                      child: Row(
+                        children: [
+                          SizedBox(width: 8),
+                          Text('删除', style: TextStyle(color: Colors.red)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
-        ],
-      ),
-      subtitle: Text(
-        '${connection.host}:${connection.port} - ${connection.type.displayName}',
-        style: TextStyle(
-          color: isConnectingThis ? Colors.grey : Colors.grey,
         ),
       ),
-      trailing: PopupMenuButton<String>(
-        icon: const Icon(Icons.more_vert, color: Colors.grey),
-        onSelected: (value) {
-          _handleMenuAction(value, connection);
-        },
-        itemBuilder: (BuildContext context) => [
-          const PopupMenuItem<String>(
-            value: 'connect',
-            child: Row(
-              children: [
-                Text('连接'),
-              ],
-            ),
-          ),
-          PopupMenuItem<String>(
-            value: 'pin',
-            child: Row(
-              children: [
-                Text(connection.isPinned ? '取消置顶' : '置顶'),
-              ],
-            ),
-          ),
-          const PopupMenuItem<String>(
-            value: 'save',
-            child: Row(
-              children: [
-                Text('保存该连接'),
-              ],
-            ),
-          ),
-          const PopupMenuItem<String>(
-            value: 'delete',
-            child: Row(
-              children: [
-                Text('删除', style: TextStyle(color: Colors.red)),
-              ],
-            ),
-          ),
-        ],
-      ),
-      contentPadding: const EdgeInsets.symmetric(
-        horizontal: 16,
-        vertical: 16,
-      ),
-      onTap: () {
-        _connectTo(connection);
-      },
     );
   }
 

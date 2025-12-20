@@ -19,7 +19,7 @@ class HelpPage extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'ConnSSH 帮助',
+                'connssh 帮助',
                 style: TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
@@ -27,7 +27,7 @@ class HelpPage extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               const Text(
-                'ConnSSH 是一个便捷的SSH和SFTP连接管理工具',
+                'connssh 是一个便捷的SSH和SFTP连接管理工具',
                 style: TextStyle(fontSize: 16),
               ),
               const SizedBox(height: 24),
@@ -55,8 +55,8 @@ class HelpPage extends StatelessWidget {
                 onPressed: () {
                   showAboutDialog(
                     context: context,
-                    applicationName: 'ConnSSH',
-                    applicationVersion: '1.1.0',
+                    applicationName: 'connssh',
+                    applicationVersion: '1.2.0',
                     children: [
                       const Text(
                         '此版本更新内容：',

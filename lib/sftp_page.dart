@@ -1689,16 +1689,8 @@ class _SftpPageState extends State<SftpPage> {
             SnackBar(
               content: Text(
                 '再按一次退出',
-                style: TextStyle(
-                  color: Theme.of(context).brightness == Brightness.dark
-                      ? Colors.white
-                      : Colors.black,
-                ),
               ),
               duration: const Duration(seconds: 1),
-              backgroundColor: (Theme.of(context).brightness == Brightness.dark)
-                  ? Colors.grey.shade800
-                  : Colors.grey.shade100,
             ),
           );
 

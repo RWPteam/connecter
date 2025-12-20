@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'main_page.dart';
+import 'models/app_settings_model.dart';
+import 'services/setting_service.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -11,33 +13,51 @@ class MyApp extends StatefulWidget {
 
   @override
   State<MyApp> createState() => _MyAppState();
+
+  static _MyAppState? of(BuildContext context) =>
+      context.findAncestorStateOfType<_MyAppState>();
 }
 
 class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
 
+  final SettingsService _settingsService = SettingsService();
+
+  AppSettings _currentSettings = AppSettings.defaults;
+  bool _isLoading = true;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    loadSettings();
   }
 
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    super.dispose();
+  Future<void> loadSettings() async {
+    final settings = await _settingsService.getSettings();
+    setState(() {
+      _currentSettings = settings;
+      _isLoading = false;
+    });
   }
 
-  @override
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const MaterialApp(
+          home: Scaffold(body: Center(child: CircularProgressIndicator())));
+    }
+
     return MaterialApp(
       navigatorKey: _navigatorKey,
       title: 'ConnSSH',
-      theme: _buildLightTheme(),
-      darkTheme: _buildDarkTheme(),
+      theme: _buildTheme(Brightness.light),
+      darkTheme: _buildTheme(Brightness.dark),
       themeMode: ThemeMode.system,
-      home: const MainPage(),
+      home: MainPage(
+        settingsService: _settingsService,
+        onSettingsChanged: loadSettings,
+      ),
       debugShowCheckedModeBanner: false,
       builder: (context, child) {
         return MediaQuery(
@@ -48,23 +68,33 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     );
   }
 
-  ThemeData _buildLightTheme() {
-    return ThemeData(
-      fontFamily: 'hmossans',
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: Colors.blueAccent,
-        brightness: Brightness.light,
-      ),
-      useMaterial3: true,
-    );
-  }
+  ThemeData _buildTheme(Brightness brightness) {
+    Color seedColor;
+    final _isdark = brightness == Brightness.light;
 
-  ThemeData _buildDarkTheme() {
+    switch (_currentSettings.defaultPageTheme) {
+      case 'orange':
+        seedColor = Colors.orange;
+        break;
+      case 'green':
+        seedColor = Colors.green;
+        break;
+      case 'yellow':
+        seedColor = Colors.yellow;
+        break;
+      case 'monochrome':
+        seedColor = _isdark ? Colors.black : Colors.white;
+        break;
+      case 'default':
+      default:
+        seedColor = Colors.blueAccent;
+    }
+
     return ThemeData(
       fontFamily: 'hmossans',
       colorScheme: ColorScheme.fromSeed(
-        seedColor: Colors.blueAccent,
-        brightness: Brightness.dark,
+        seedColor: seedColor,
+        brightness: brightness,
       ),
       useMaterial3: true,
     );
