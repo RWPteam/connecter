@@ -206,7 +206,7 @@ class _SFTPSettingsPageState extends State<SFTPSettingsPage> {
       margin: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 16.0),
       decoration: BoxDecoration(
         border: Border.all(
-          color: Colors.grey.shade300,
+          color: Colors.grey,
           width: 1.0,
         ),
         borderRadius: BorderRadius.circular(12.0),
@@ -507,7 +507,7 @@ class _SSHSettingsPageState extends State<SSHSettingsPage> {
       margin: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 16.0),
       decoration: BoxDecoration(
         border: Border.all(
-          color: Colors.grey.shade300,
+          color: Colors.grey,
           width: 1.0,
         ),
         borderRadius: BorderRadius.circular(12.0),
@@ -749,7 +749,7 @@ class _GlobalSettingsPageState extends State<GlobalSettingsPage> {
       margin: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 16.0),
       decoration: BoxDecoration(
         border: Border.all(
-          color: Colors.grey.shade300,
+          color: Colors.grey,
           width: 1.0,
         ),
         borderRadius: BorderRadius.circular(12.0),
@@ -902,7 +902,7 @@ class _SettingsPageState extends State<SettingsPage> {
       margin: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 16.0),
       decoration: BoxDecoration(
         border: Border.all(
-          color: Colors.grey.shade300,
+          color: Colors.grey,
           width: 1.0,
         ),
         borderRadius: BorderRadius.circular(12.0),

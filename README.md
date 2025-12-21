@@ -6,7 +6,7 @@ A lightweight & cross-platform SSH/SFTP client built with Flutter.
 - 完整 SSH 终端（快捷键、终端主题、多会话）
 - 完整 SFTP：批量文件操作，支持自定义默认访问目录
 - 响应式布局：多尺寸设备自适应
-- 跨平台：Android / Windows / iOS(ToDo) / HarmonyOS
+- 跨平台：Android / Windows / iOS / MacOS / HarmonyOS
 - 支持私钥 / 密码 认证
 
 ### 截图
@@ -20,6 +20,7 @@ A lightweight & cross-platform SSH/SFTP client built with Flutter.
 | Android | [APK](https://github.com/RWPteam/ConnSSH/releases/download/1.1.0/ConnSSH_1.1.0.apk) | arm&arm64 |
 | Windows | [exe](https://github.com/RWPteam/ConnSSH/releases/download/1.1.0/ConnSSH_1.1.0.exe) | 仅支持64位设备 |
 | OHOS | [app](https://github.com/RWPteam/ConnSSH/releases/download/1.1.0/ConnSSH_1.1.0.app.zip) | 应用市场正在审核中 |
+| macOS | 
 
 
 ### 构建&打包
