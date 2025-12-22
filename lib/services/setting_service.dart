@@ -21,6 +21,11 @@ class SettingsService {
       return AppSettings.fromMap(jsonMap);
     } catch (e) {
       debugPrint('Error parsing settings: $e');
+      debugPrint('Data causing error: $jsonString');
+
+      // 修复逻辑：清空无效的设置数据
+      await _clearInvalidSettings();
+
       return AppSettings.defaults;
     }
   }
@@ -33,9 +38,17 @@ class SettingsService {
       bool actualFirstRunStatus = false;
 
       if (currentJson != null) {
-        final currentMap = json.decode(currentJson);
-        actualFirstRunStatus = currentMap['isFirstRun'] ?? false;
+        try {
+          final currentMap = json.decode(currentJson);
+          actualFirstRunStatus = currentMap['isFirstRun'] ?? false;
+        } catch (e) {
+          // 如果当前设置也是无效格式，清除它
+          debugPrint('Current settings is invalid format, clearing...');
+          await _clearInvalidSettings();
+          actualFirstRunStatus = false;
+        }
       }
+
       final settingsToSave = settings.copyWith(
           isFirstRun:
               actualFirstRunStatus == false ? false : settings.isFirstRun);
@@ -44,7 +57,14 @@ class SettingsService {
       await prefs.setString(_settingsKey, jsonString);
     } catch (e) {
       debugPrint('Error saving settings: $e');
-      rethrow;
+
+      // 尝试清除可能存在的无效数据
+      await _clearInvalidSettings();
+
+      // 然后重新尝试保存
+      final prefs = await SharedPreferences.getInstance();
+      final jsonString = json.encode(settings.toMap());
+      await prefs.setString(_settingsKey, jsonString);
     }
   }
 
@@ -55,7 +75,27 @@ class SettingsService {
       await saveSettings(updatedSettings);
     } catch (e) {
       debugPrint('标记为非第一次运行失败: $e');
-      throw Exception('标记为非第一次运行失败: $e');
+
+      // 清除无效设置后重试
+      await _clearInvalidSettings();
+
+      // 创建默认设置并标记为非首次运行
+      final defaultSettings = AppSettings.defaults.copyWith(isFirstRun: false);
+      await saveSettings(defaultSettings);
+    }
+  }
+
+  /// 清除无效的设置数据
+  Future<void> _clearInvalidSettings() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+
+      // 移除当前无效的设置
+      await prefs.remove(_settingsKey);
+
+      debugPrint('Cleared invalid settings data');
+    } catch (e) {
+      debugPrint('Error clearing invalid settings: $e');
     }
   }
 

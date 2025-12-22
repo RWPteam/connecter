@@ -14,6 +14,11 @@
 *.jks
 migrate_working_dir/
 
+# self
+todo
+.VSCodeCounter/
+.hvigor/
+
 # IntelliJ related
 *.iml
 *.ipr

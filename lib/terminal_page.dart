@@ -337,9 +337,9 @@ class _TerminalPageState extends State<TerminalPage> {
   }
 
   Color _getAppBarColor() {
-    if (_isConnecting) return Colors.grey.shade700; 
-    if (_isConnected) return Theme.of(context).primaryColor; 
-    return Colors.red; 
+    if (_isConnecting) return Colors.grey.shade700;
+    if (_isConnected) return Theme.of(context).primaryColor;
+    return Colors.red;
   }
 
   List<PopupMenuEntry<String>> _buildMenuItems() {
@@ -479,12 +479,6 @@ class _TerminalPageState extends State<TerminalPage> {
     if (_isConnected) _terminalFocusNode.requestFocus();
 
     _hideThemeSelectorTimer?.cancel();
-  }
-
-  void _resetHideThemeSelectorTimer() {
-    _hideThemeSelectorTimer?.cancel();
-    _hideThemeSelectorTimer =
-        Timer(const Duration(seconds: 5), _hideThemeSelector);
   }
 
   void _reconnect() {
@@ -656,22 +650,54 @@ class _TerminalPageState extends State<TerminalPage> {
         appBar: AppBar(
           backgroundColor: Colors.grey.shade700,
           foregroundColor: Colors.white,
-          title: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(widget.connection.name,
-                  style: const TextStyle(
-                      fontSize: 18, fontWeight: FontWeight.bold)),
-              Row(
+          toolbarHeight: 40,
+          titleSpacing: 0,
+          automaticallyImplyLeading: false, // 完全禁用默认的返回按钮
+          leading: _ismobile
+              ? null
+              : IconButton(
+                  icon: const Icon(Icons.arrow_back, size: 20),
+                  padding: const EdgeInsets.all(8),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+          title: Container(
+            width: double.infinity,
+            child: Padding(
+              padding: EdgeInsets.only(left: _ismobile ? 18.0 : 0), // 添加左边距
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.circle_outlined, color: Colors.white, size: 10),
-                  const SizedBox(width: 6),
-                  Text('连接中...',
-                      style:
-                          const TextStyle(fontSize: 12, color: Colors.white70)),
+                  Text(
+                    widget.connection.name,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.circle_outlined,
+                        color: Colors.white,
+                        size: 8,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        '连接中...',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: Colors.white70,
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
-            ],
+            ),
           ),
         ),
         body: const Center(
@@ -707,38 +733,100 @@ class _TerminalPageState extends State<TerminalPage> {
       child: Scaffold(
         resizeToAvoidBottomInset: true,
         appBar: AppBar(
+          toolbarHeight: 40,
           backgroundColor: _getAppBarColor(),
           foregroundColor: Colors.white,
-          title: InkWell(
-            // 点击标题也可以快速切换
-            onTap: _isMultiWindowMode
-                ? () => setState(() => _activeIndex = _activeIndex == 0 ? 1 : 0)
-                : null,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(displayTitle,
-                    style: const TextStyle(
-                        fontSize: 18, fontWeight: FontWeight.bold)),
-                Row(
-                  children: [
-                    Icon(_isConnected ? Icons.circle : Icons.circle_outlined,
-                        color: Colors.white, size: 10),
-                    const SizedBox(width: 6),
-                    Text(_status,
-                        style: const TextStyle(
-                            fontSize: 12, color: Colors.white70)),
-                  ],
+          titleSpacing: 0,
+          automaticallyImplyLeading: false, // 完全禁用默认的返回按钮
+          leading: _ismobile
+              ? null
+              : IconButton(
+                  icon: const Icon(Icons.arrow_back, size: 20),
+                  padding: const EdgeInsets.all(8),
+                  onPressed: () => Navigator.of(context).pop(),
                 ),
-              ],
+          title: Container(
+            width: double.infinity,
+            child: Padding(
+              padding: EdgeInsets.only(left: _ismobile ? 18.0 : 0), // 添加左边距
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    displayTitle,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Row(
+                    children: [
+                      Icon(
+                        _isConnected ? Icons.circle : Icons.circle_outlined,
+                        color: Colors.white,
+                        size: 8,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        _status,
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: Colors.white70,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
           actions: [
-            // 切换按钮只有在多窗口模式下显示
+            // 窗口切换按钮（只有在多窗口模式下显示）
             if (_isMultiWindowMode)
               IconButton(
-                icon: const Icon(Icons.swap_horiz),
-                tooltip: "切换窗口",
+                icon: Container(
+                  width: 40,
+                  height: 40,
+                  alignment: Alignment.center,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            width: 6,
+                            height: 6,
+                            margin: const EdgeInsets.symmetric(horizontal: 1),
+                            decoration: BoxDecoration(
+                              color: _activeIndex == 0
+                                  ? Colors.white
+                                  : Colors.white54,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          Container(
+                            width: 6,
+                            height: 6,
+                            margin: const EdgeInsets.symmetric(horizontal: 1),
+                            decoration: BoxDecoration(
+                              color: _activeIndex == 1
+                                  ? Colors.white
+                                  : Colors.white54,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                iconSize: 24,
+                padding: const EdgeInsets.all(8),
                 onPressed: () {
                   setState(() => _activeIndex = _activeIndex == 0 ? 1 : 0);
                   _terminalFocusNode.requestFocus();

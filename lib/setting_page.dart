@@ -7,7 +7,6 @@ import 'package:file_picker/file_picker.dart';
 import 'models/app_settings_model.dart';
 import 'services/setting_service.dart';
 
-// 二级设置页面 - SFTP设置
 class SFTPSettingsPage extends StatefulWidget {
   final SettingsService settingsService;
   final Function() onSettingsChanged;
@@ -278,7 +277,6 @@ class _SFTPSettingsPageState extends State<SFTPSettingsPage> {
   }
 }
 
-// 二级设置页面 - SSH设置
 class SSHSettingsPage extends StatefulWidget {
   final SettingsService settingsService;
   final Function() onSettingsChanged;
@@ -596,7 +594,6 @@ class _SSHSettingsPageState extends State<SSHSettingsPage> {
   }
 }
 
-// 二级设置页面 - 全局设置
 class GlobalSettingsPage extends StatefulWidget {
   final SettingsService settingsService;
   final Function() onSettingsChanged;
@@ -828,7 +825,6 @@ class _GlobalSettingsPageState extends State<GlobalSettingsPage> {
   }
 }
 
-// 主设置页面 - 菜单形式
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
 
@@ -839,7 +835,6 @@ class SettingsPage extends StatefulWidget {
 class _SettingsPageState extends State<SettingsPage> {
   final SettingsService _settingsService = SettingsService();
 
-  // 菜单项列表
   final List<Map<String, dynamic>> _menuItems = [
     {
       'title': 'SFTP设置',
@@ -854,8 +849,8 @@ class _SettingsPageState extends State<SettingsPage> {
       'subtitle': '页面主题、恢复默认设置',
     },
     {
-      'title': '关于',
-      'subtitle': '版本信息、帮助文档',
+      'title': '帮助',
+      'subtitle': '帮助文档、版本信息',
     },
   ];
 
@@ -968,7 +963,7 @@ class _SettingsPageState extends State<SettingsPage> {
               ..._menuItems.asMap().entries.map(
                     (entry) => _buildMenuItem(entry.value, entry.key),
                   ),
-              const SizedBox(height: 60), // 为备案号留出空间
+              const SizedBox(height: 60),
             ],
           ),
           Positioned(

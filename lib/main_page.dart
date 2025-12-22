@@ -1,10 +1,9 @@
 // ignore_for_file: use_build_context_synchronously
 import 'dart:async';
 import 'dart:io';
-import 'dart:ui';
-import 'package:connssh/monitor_server_page.dart';
-import 'package:connssh/read_key_info_page.dart';
-import 'package:connssh/setting_page.dart';
+import 'monitor_server_page.dart';
+import 'read_key_info_page.dart';
+import 'setting_page.dart';
 import 'package:flutter/material.dart';
 import 'manage_connections_page.dart';
 import 'manage_credentials_page.dart';
@@ -20,7 +19,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter/services.dart';
 
 class NativeBridge {
-  static const platform = MethodChannel('com.samuioto.connssh/native');
+  static const platform = MethodChannel('com.samuioto.ConnSSH/native');
 
   Future<String> getNativeMessage() async {
     try {
@@ -171,7 +170,7 @@ class _MainPageState extends State<MainPage> {
         context: context,
         barrierDismissible: false,
         builder: (context) => AlertDialog(
-          title: const Text('欢迎使用connssh'),
+          title: const Text('欢迎使用ConnSSH'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -313,7 +312,7 @@ class _MainPageState extends State<MainPage> {
     if (!_permissionsGranted) {
       return Scaffold(
         appBar: AppBar(
-          title: const Text('connssh'),
+          title: const Text('ConnSSH'),
           backgroundColor: Colors.transparent,
           elevation: 0,
           foregroundColor: Theme.of(context).colorScheme.onSurface,
@@ -325,7 +324,7 @@ class _MainPageState extends State<MainPage> {
     }
     return Scaffold(
       appBar: AppBar(
-        title: const Text('connssh'),
+        title: const Text('ConnSSH'),
         backgroundColor: Colors.transparent,
         //elevation: 0,
         //foregroundColor: Theme.of(context).colorScheme.onSurface,
@@ -644,10 +643,10 @@ class _MainPageState extends State<MainPage> {
           child: Container(
             padding: EdgeInsets.symmetric(
               horizontal: 16,
-              vertical: isLargeHeight ? 16 : 8, // 根据高度调整垂直内边距
+              vertical: isLargeHeight ? 16 : 8,
             ),
             child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center, // 垂直居中对齐
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 // 左侧图标
                 Container(
@@ -664,13 +663,11 @@ class _MainPageState extends State<MainPage> {
 
                 const SizedBox(width: 12),
 
-                // 中间文字内容
                 Expanded(
                   child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center, // 垂直居中
+                    mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // 标题
                       Text(
                         connection.name,
                         style: TextStyle(
@@ -925,7 +922,6 @@ class _MainPageState extends State<MainPage> {
     bool showSubtitle,
     double screenHeight,
   ) {
-    // 根据屏幕高度动态计算按钮高度
     final double buttonHeight = screenHeight >= 500 ? 100 : 80;
 
     Widget buildButton({
@@ -943,7 +939,7 @@ class _MainPageState extends State<MainPage> {
                   Text(
                     title,
                     style: TextStyle(
-                      fontSize: screenHeight >= 500 ? 18 : 16, // 根据高度调整字体大小
+                      fontSize: screenHeight >= 500 ? 18 : 16,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -951,7 +947,7 @@ class _MainPageState extends State<MainPage> {
                   Text(
                     subtitle,
                     style: TextStyle(
-                      fontSize: screenHeight >= 500 ? 14 : 12, // 根据高度调整字体大小
+                      fontSize: screenHeight >= 500 ? 14 : 12,
                       color: Colors.grey,
                     ),
                   ),
@@ -963,7 +959,7 @@ class _MainPageState extends State<MainPage> {
               child: Text(
                 title,
                 style: TextStyle(
-                  fontSize: screenHeight >= 500 ? 18 : 16, // 根据高度调整字体大小
+                  fontSize: screenHeight >= 500 ? 18 : 16,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -971,11 +967,11 @@ class _MainPageState extends State<MainPage> {
 
       return SizedBox(
         width: double.infinity,
-        height: buttonHeight, // 使用动态计算的高度
+        height: buttonHeight,
         child: OutlinedButton(
           onPressed: onPressed,
           style: OutlinedButton.styleFrom(
-            padding: EdgeInsets.all(screenHeight >= 500 ? 14 : 12), // 根据高度调整内边距
+            padding: EdgeInsets.all(screenHeight >= 500 ? 14 : 12),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
             ),
@@ -1006,13 +1002,13 @@ class _MainPageState extends State<MainPage> {
       buildButton(
         onPressed: _showManagementOptions,
         title: '管理信息',
-        subtitle: '管理连接配置和认证凭证',
+        subtitle: '管理连接配置、认证凭证',
       ),
       const SizedBox(height: 16),
       buildButton(
         onPressed: _showUtilityTools,
         title: '实用工具',
-        subtitle: '服务器数据面板和密钥/证书解析工具',
+        subtitle: '服务器数据面板、密钥和证书工具',
       ),
       const SizedBox(height: 16),
       buildButton(
@@ -1023,7 +1019,7 @@ class _MainPageState extends State<MainPage> {
           );
         },
         title: "设置",
-        subtitle: "查看设置、使用说明和版本信息",
+        subtitle: "查看设置、教程和版本信息",
       ),
     ];
   }
@@ -1138,7 +1134,7 @@ class _MainPageState extends State<MainPage> {
                           ),
                         );
                       },
-                      label: const Text('密钥/证书解析'),
+                      label: const Text('密钥和证书工具'),
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 12),
                       ),

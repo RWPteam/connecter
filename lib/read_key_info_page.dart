@@ -1,7 +1,8 @@
-// ignore_for_file: unused_field
+// ignore_for_file: unused_field, deprecated_member_use
 
 import 'dart:convert';
 import 'dart:io';
+import 'package:connssh/keygen_page.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
@@ -23,36 +24,110 @@ class _ReadKeyInfoPageState extends State<ReadKeyInfoPage> {
   Map<String, String> _parsedInfo = {};
   bool _showPasteField = false;
   final TextEditingController _pasteController = TextEditingController();
+  List<Map<String, String>> _multipleCertificates = [];
+  int _currentCertificateIndex = 0;
 
   void _parseInput(String content) {
     if (content.trim().isEmpty) return;
 
+    _multipleCertificates.clear();
+    _currentCertificateIndex = 0;
+
+    String trimmed = content.trim();
+
+    final certPattern = RegExp(
+      r'-----BEGIN CERTIFICATE-----(.*?)-----END CERTIFICATE-----',
+      dotAll: true,
+    );
+
+    final matches = certPattern.allMatches(trimmed);
+
+    if (matches.isNotEmpty) {
+      for (var match in matches) {
+        final certContent =
+            '-----BEGIN CERTIFICATE-----${match.group(1)}-----END CERTIFICATE-----';
+        _parseSingleCertificate(certContent, isMultiple: true);
+      }
+
+      if (_multipleCertificates.isNotEmpty) {
+        setState(() {
+          _parsedInfo = _multipleCertificates[0];
+          _keyContent = matches.first.group(0);
+        });
+      }
+    } else {
+      _parseSingleCertificate(trimmed);
+    }
+  }
+
+  void _parseSingleCertificate(String content, {bool isMultiple = false}) {
     Map<String, String> info = {};
     String trimmed = content.trim();
 
-    // 定义常用签名算法 OID 映射
     const oidMap = {
       '1.2.840.113549.1.1.11': 'sha256WithRSAEncryption',
       '1.2.840.113549.1.1.12': 'sha384WithRSAEncryption',
       '1.2.840.113549.1.1.13': 'sha512WithRSAEncryption',
       '1.2.840.113549.1.1.5': 'sha1WithRSAEncryption',
       '1.2.840.10045.4.3.2': 'ecdsa-with-sha256',
+      '1.2.840.10045.4.3.3': 'ecdsa-with-sha384',
+      '1.2.840.10045.4.3.4': 'ecdsa-with-sha512',
+    };
+
+    const oidToNameMap = {
+      '2.5.4.3': 'CN', // 通用名称
+      '2.5.4.6': 'C', // 国家
+      '2.5.4.7': 'L', // 地区
+      '2.5.4.8': 'S', // 州/省
+      '2.5.4.10': 'O', // 组织
+      '2.5.4.11': 'OU', // 组织单位
+      '2.5.4.12': 'T', // 职务
+      '2.5.4.13': 'D', // 描述
+      '1.2.840.113549.1.9.1': 'EMAIL', // 电子邮件
     };
 
     try {
       info["文件名"] = _fileName ?? "未命名";
+
       if (trimmed.contains("BEGIN CERTIFICATE")) {
         info["类型"] = "X.509 证书";
 
         var data = X509Utils.x509CertificateFromPem(trimmed);
 
         String getReadableName(Map<String, dynamic> dnMap) {
-          if (dnMap.containsKey('CN') && dnMap['CN'] != null) {
-            return dnMap['CN'].toString();
-          } else {
-            // 如果没有 CN，则把所有的 key-value 拼起来 (如 C=CN, O=Google...)
-            return dnMap.entries.map((e) => "${e.key}=${e.value}").join(", ");
+          List<String> parts = [];
+
+          // 按照常用顺序添加字段
+          const orderedOids = ['C', 'O', 'OU', 'CN', 'L', 'S', 'EMAIL'];
+          const oidToOrderedKey = {
+            'C': '2.5.4.6',
+            'O': '2.5.4.10',
+            'OU': '2.5.4.11',
+            'CN': '2.5.4.3',
+            'L': '2.5.4.7',
+            'S': '2.5.4.8',
+            'EMAIL': '1.2.840.113549.1.9.1',
+          };
+
+          for (var key in orderedOids) {
+            var oid = oidToOrderedKey[key];
+            if (dnMap.containsKey(oid) &&
+                dnMap[oid] != null &&
+                dnMap[oid].toString().isNotEmpty) {
+              parts.add('$key=${dnMap[oid]}');
+            }
           }
+
+          dnMap.forEach((oid, value) {
+            if (value != null && value.toString().isNotEmpty) {
+              var name = oidToNameMap[oid] ?? oid;
+              if (!parts.any((part) => part.startsWith('$name='))) {
+                parts.add('$name=$value');
+              }
+            }
+          });
+
+          return parts.join(', ');
         }
 
         info["主体"] = getReadableName(data.subject);
@@ -67,24 +142,76 @@ class _ReadKeyInfoPageState extends State<ReadKeyInfoPage> {
         info["状态"] = isExpired ? "已过期" : "有效中";
 
         String sigOid = data.signatureAlgorithm;
-        info["签名算法"] = oidMap[sigOid] ?? sigOid; // 找不到映射则显示原始 OID
+        info["签名算法"] = oidMap[sigOid] ?? sigOid;
+
+        // 处理序列号，确保是16进制且格式正确
+        BigInt serial = data.serialNumber;
+        String hexString = serial.toRadixString(16).toUpperCase();
+        if (hexString.length % 2 != 0) {
+          hexString = '0' + hexString;
+        }
+        info["序列号"] = hexString;
+
+        if (isMultiple) {
+          info["证书序号"] = "${_multipleCertificates.length + 1}";
+        }
       } else if (trimmed.contains("BEGIN RSA PRIVATE KEY") ||
-          trimmed.contains("BEGIN PRIVATE KEY")) {
-        info["类型"] = "私钥 (Private Key)";
-        info["格式"] = trimmed.contains("RSA") ? "PKCS#1" : "PKCS#8";
+          trimmed.contains("BEGIN PRIVATE KEY") ||
+          trimmed.contains("BEGIN ENCRYPTED PRIVATE KEY")) {
+        info["类型"] = "私钥 (不支持解析)";
+        info["状态"] = "私钥解析功能已禁用";
+        info["建议"] = "请上传证书文件(.crt/.cer/.pem)";
+      } else {
+        try {
+          List<int> bytes =
+              base64.decode(trimmed.replaceAll(RegExp(r'\s'), ''));
+          String pem = "-----BEGIN CERTIFICATE-----\n" +
+              base64.encode(bytes).replaceAllMapped(
+                  RegExp(r'.{64}'), (match) => '${match.group(0)}\n') +
+              "\n-----END CERTIFICATE-----";
+
+          _parseSingleCertificate(pem);
+          return;
+        } catch (e) {
+          info["类型"] = "未知格式";
+          info["状态"] = "无法解析";
+          info["详情"] = "内容无法识别";
+        }
       }
     } catch (e) {
       info["解析状态"] = "证书结构解析失败";
-      info["详情"] = "错误原因: $e";
+      info["详情"] = "${e.toString().split('\n').first}";
     }
 
     info["字符长度"] = "${content.length} 字符";
 
-    setState(() {
-      _parsedInfo = info;
-      _keyContent = content;
-      _showPasteField = false;
-    });
+    if (isMultiple) {
+      _multipleCertificates.add(info);
+    } else {
+      setState(() {
+        _parsedInfo = info;
+        _keyContent = content;
+        _showPasteField = false;
+      });
+    }
+  }
+
+  void _switchCertificate(int index) {
+    if (index >= 0 && index < _multipleCertificates.length) {
+      setState(() {
+        _currentCertificateIndex = index;
+        _parsedInfo = _multipleCertificates[index];
+
+        final certPattern = RegExp(
+          r'-----BEGIN CERTIFICATE-----(.*?)-----END CERTIFICATE-----',
+          dotAll: true,
+        );
+        final matches = certPattern.allMatches(_pasteController.text);
+        if (matches.length > index) {
+          _keyContent = matches.elementAt(index).group(0);
+        }
+      });
+    }
   }
 
   void _copyToClipboard() {
@@ -98,10 +225,17 @@ class _ReadKeyInfoPageState extends State<ReadKeyInfoPage> {
     });
   }
 
+  void _navigateToKeyGen() {
+    if (mounted) {
+      Navigator.push(
+          context, MaterialPageRoute(builder: (context) => KeygenPage()));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('密钥/证书解析')),
+      appBar: AppBar(title: const Text('密钥和证书工具')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24.0),
         child: Column(
@@ -121,11 +255,52 @@ class _ReadKeyInfoPageState extends State<ReadKeyInfoPage> {
               },
               title: '从剪贴板粘贴',
             ),
+            const SizedBox(height: 16),
+            _buildActionButton(
+              onPressed: _navigateToKeyGen,
+              title: '密钥生成',
+            ),
             if (_showPasteField) _buildPasteArea(),
+            if (_multipleCertificates.length > 1) _buildCertificateSwitcher(),
             if (_parsedInfo.isNotEmpty) _buildResultSection(),
             if (_keyContent != null) _buildPreviewArea(),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildCertificateSwitcher() {
+    return Container(
+      margin: const EdgeInsets.only(top: 16),
+      decoration: BoxDecoration(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          const Text('包含多个证书:', style: TextStyle(fontWeight: FontWeight.bold)),
+          Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.chevron_left),
+                onPressed: _currentCertificateIndex > 0
+                    ? () => _switchCertificate(_currentCertificateIndex - 1)
+                    : null,
+              ),
+              Text(
+                  '${_currentCertificateIndex + 1}/${_multipleCertificates.length}'),
+              IconButton(
+                icon: const Icon(Icons.chevron_right),
+                onPressed:
+                    _currentCertificateIndex < _multipleCertificates.length - 1
+                        ? () => _switchCertificate(_currentCertificateIndex + 1)
+                        : null,
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -169,8 +344,10 @@ class _ReadKeyInfoPageState extends State<ReadKeyInfoPage> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text('解析结果',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            Text(
+              '解析结果${_multipleCertificates.length > 1 ? " (证书${_currentCertificateIndex + 1})" : ""}',
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
             if (!_isOhos)
               IconButton(
                   onPressed: _copyToClipboard,
@@ -282,40 +459,21 @@ class _ReadKeyInfoPageState extends State<ReadKeyInfoPage> {
     try {
       FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
-        allowedExtensions: ['pem', 'crt', 'cer', 'key', 'jks', 'pub'],
+        allowedExtensions: ['pem', 'crt', 'cer', 'der'],
       );
 
       if (result != null && result.files.single.path != null) {
         File file = File(result.files.single.path!);
-        String extension = result.files.single.extension?.toLowerCase() ?? '';
         _fileName = result.files.single.name;
 
-        // 处理二进制格式 (CER/CRT 可能以 DER 形式存在)
-        if (extension == 'cer' || extension == 'crt' || extension == 'jks') {
-          List<int> bytes = await file.readAsBytes();
-          String content = _attemptToConvertPem(bytes);
-          _parseInput(content);
-        } else {
-          String content = await file.readAsString();
-          _parseInput(content);
-        }
+        String content = await file.readAsString();
+        _parseInput(content);
       }
     } catch (e) {
-      _showError("文件读取或转换失败: $e");
+      _showError("文件读取失败: $e");
     } finally {
       setState(() => _isProcessing = false);
     }
-  }
-
-  String _attemptToConvertPem(List<int> bytes) {
-    try {
-      String text = utf8.decode(bytes);
-      if (text.contains("BEGIN ")) return text;
-    } catch (_) {}
-
-    String base64Content = base64.encode(bytes);
-
-    return "-----BEGIN CERTIFICATE-----\n$base64Content\n-----END CERTIFICATE-----";
   }
 
   void _showError(String msg) {
