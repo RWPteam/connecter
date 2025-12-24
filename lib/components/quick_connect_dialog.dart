@@ -9,6 +9,7 @@ import '../services/storage_service.dart';
 import '../services/ssh_service.dart';
 import '../terminal_page.dart';
 import '../sftp_page.dart';
+import 'telnet_connect_dialog.dart';
 
 class QuickConnectDialog extends StatefulWidget {
   final ConnectionInfo? connection;
@@ -51,11 +52,10 @@ class _QuickConnectDialogState extends State<QuickConnectDialog> {
       _portController.text = widget.connection!.port.toString();
       _selectedType = widget.connection!.type;
       _rememberConnection = widget.connection!.remember;
-      _sftpPathController.text =
-          widget.connection!.sftpPath ?? '/'; // 从连接信息中获取SFTP路径
+      _sftpPathController.text = widget.connection!.sftpPath ?? '/';
     } else {
       _nameController.text = '新连接';
-      _sftpPathController.text = '/'; // 默认路径
+      _sftpPathController.text = '/';
       _isNameChanged = false;
     }
 
@@ -85,7 +85,6 @@ class _QuickConnectDialogState extends State<QuickConnectDialog> {
   }
 
   void _generateConnectionName() {
-    // 编辑模式下不允许自动生成名称，除非用户明确点击重置
     if (_isNameChanged) return;
 
     if (_hostController.text.isNotEmpty || _portController.text.isNotEmpty) {
@@ -147,7 +146,7 @@ class _QuickConnectDialogState extends State<QuickConnectDialog> {
 
     try {
       final storageService = StorageService();
-      final sshService = SshService(); // 在方法内创建 SSH 服务实例
+      final sshService = SshService();
 
       final credentials = await storageService.getCredentials();
       final credential = credentials.firstWhere(
@@ -155,7 +154,6 @@ class _QuickConnectDialogState extends State<QuickConnectDialog> {
         orElse: () => throw Exception('找不到认证凭证'),
       );
 
-      // 设置3秒超时
       await sshService
           .connect(connection, credential)
           .timeout(const Duration(seconds: 3), onTimeout: () {
@@ -211,7 +209,7 @@ class _QuickConnectDialogState extends State<QuickConnectDialog> {
       }
     } catch (e) {
       if (mounted) {
-        Navigator.of(context).pop(); // 关闭加载对话框
+        Navigator.of(context).pop();
       }
 
       if (mounted) {
@@ -262,7 +260,7 @@ class _QuickConnectDialogState extends State<QuickConnectDialog> {
         remember: true,
         sftpPath: _selectedType == ConnectionType.sftp
             ? _sftpPathController.text
-            : null, // 保存SFTP路径
+            : null,
       );
 
       await _storageService.saveConnection(connection);
@@ -348,6 +346,14 @@ class _QuickConnectDialogState extends State<QuickConnectDialog> {
     if (widget.isNewConnection) return '保存';
     if (_isEditing) return '更新';
     return '连接';
+  }
+
+  void _showTelnetDialog() {
+    Navigator.of(context).pop(); // 关闭当前对话框
+    showDialog(
+      context: context,
+      builder: (context) => const TelnetConnectDialog(),
+    );
   }
 
   @override
@@ -522,6 +528,12 @@ class _QuickConnectDialogState extends State<QuickConnectDialog> {
                           : () => Navigator.of(context).pop(),
                       child: const Text('取消'),
                     ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: OutlinedButton(
+                        onPressed: _isConnecting ? null : _showTelnetDialog,
+                        child: const Text('Telnet')),
                   ),
                   const SizedBox(width: 12),
                   Expanded(

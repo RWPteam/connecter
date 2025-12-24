@@ -72,6 +72,8 @@ dependencies:
   asn1lib: ^1.6.5
   code_text_field: ^1.1.0
   highlight: ^0.7.0
+  ctelnet: ^0.3.1
+  fast_gbk: ^1.0.0
 
 dev_dependencies:
   flutter_test:

@@ -1,6 +1,8 @@
 // ignore_for_file: use_build_context_synchronously
 import 'dart:async';
 import 'dart:io';
+import 'package:connssh/manage_telnet_connections_page.dart';
+
 import 'monitor_server_page.dart';
 import 'read_key_info_page.dart';
 import 'setting_page.dart';
@@ -546,8 +548,8 @@ class _MainPageState extends State<MainPage> {
                         connection.isPinned
                             ? Icons.vertical_align_top
                             : _getConnectionIcon(connection.type),
-                        color: Colors.grey,
                         size: 20,
+                        color: Color.fromARGB(255, 117, 117, 117),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -563,7 +565,7 @@ class _MainPageState extends State<MainPage> {
                     ),
                     PopupMenuButton<String>(
                       icon: const Icon(Icons.more_vert,
-                          color: Colors.grey, size: 20),
+                          color: Color.fromARGB(255, 117, 117, 117), size: 20),
                       onSelected: (value) {
                         _handleMenuAction(value, connection);
                       },
@@ -656,7 +658,7 @@ class _MainPageState extends State<MainPage> {
                     connection.isPinned
                         ? Icons.vertical_align_top
                         : _getConnectionIcon(connection.type),
-                    color: Colors.grey,
+                    color: Color.fromARGB(255, 117, 117, 117),
                     size: isLargeHeight ? 24 : 20,
                   ),
                 ),
@@ -700,7 +702,7 @@ class _MainPageState extends State<MainPage> {
                 PopupMenuButton<String>(
                   icon: Icon(
                     Icons.more_vert,
-                    color: Colors.grey,
+                    color: Color.fromARGB(255, 117, 117, 117),
                     size: isLargeHeight ? 24 : 20,
                   ),
                   onSelected: (value) {
@@ -1050,7 +1052,7 @@ class _MainPageState extends State<MainPage> {
                           _loadRecentConnections();
                         });
                       },
-                      label: const Text('保存的连接'),
+                      label: const Text('SSH/SFTP'),
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
@@ -1070,7 +1072,28 @@ class _MainPageState extends State<MainPage> {
                           ),
                         );
                       },
-                      label: const Text('保存的凭证'),
+                      label: const Text('凭证'),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                const ManageTelnetConnectionsPage(),
+                          ),
+                        );
+                      },
+                      label: const Text('Telnet'),
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 12),
                       ),

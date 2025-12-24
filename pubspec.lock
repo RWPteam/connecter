@@ -97,6 +97,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.0.7"
+  ctelnet:
+    dependency: "direct main"
+    description:
+      name: ctelnet
+      sha256: a2af1f687dc6e093eca36e4b73fe1c8025c441b02a566e798737d8e9ee76ca0f
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.3.1"
   cupertino_icons:
     dependency: "direct main"
     description:
@@ -137,6 +145,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.3.1"
+  fast_gbk:
+    dependency: "direct main"
+    description:
+      name: fast_gbk
+      sha256: "3f0dc0309986f615404ea8d1fccf00a535dc00ee90b88d71492866bd95586489"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.0.0"
   ffi:
     dependency: transitive
     description:
@@ -759,6 +775,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.2.1"
+  terminal_color_parser:
+    dependency: transitive
+    description:
+      name: terminal_color_parser
+      sha256: "78d461801db291521e53af24dea67bbc6e41e532e94e2f9d590578c66bb04a9c"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.7.0"
   test_api:
     dependency: transitive
     description:

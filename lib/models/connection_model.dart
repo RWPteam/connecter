@@ -8,7 +8,7 @@ class ConnectionInfo {
   bool remember;
   bool isPinned;
   DateTime lastUsed;
-  String? sftpPath; 
+  String? sftpPath;
 
   ConnectionInfo({
     required this.id,
@@ -19,9 +19,9 @@ class ConnectionInfo {
     required this.type,
     required this.remember,
     this.isPinned = false,
-    this.sftpPath, 
+    this.sftpPath,
     DateTime? lastUsed,
-  }) : lastUsed = lastUsed ?? DateTime.now();//定义连接信息模型
+  }) : lastUsed = lastUsed ?? DateTime.now(); //定义连接信息模型
 
   Map<String, dynamic> toJson() {
     return {
@@ -34,9 +34,9 @@ class ConnectionInfo {
       'remember': remember,
       'isPinned': isPinned,
       'lastUsed': lastUsed.toIso8601String(),
-      'sftpPath': sftpPath, 
+      'sftpPath': sftpPath,
     };
-  }//转换为json
+  } //转换为json
 
   factory ConnectionInfo.fromJson(Map<String, dynamic> json) {
     ConnectionType type;
@@ -44,7 +44,7 @@ class ConnectionInfo {
       final typeString = json['type'] as String;
       type = ConnectionType.values.firstWhere(
         (e) => e.toString() == typeString,
-        orElse: () => ConnectionType.ssh, 
+        orElse: () => ConnectionType.ssh,
       );
     } catch (e) {
       type = ConnectionType.ssh;
@@ -58,10 +58,10 @@ class ConnectionInfo {
       type: type,
       remember: json['remember'],
       isPinned: json['isPinned'] ?? false,
-      sftpPath: json['sftpPath'], 
+      sftpPath: json['sftpPath'],
       lastUsed: json['lastUsed'] != null
-        ? DateTime.parse(json['lastUsed'])
-        : DateTime.now(),
+          ? DateTime.parse(json['lastUsed'])
+          : DateTime.now(),
     );
   }
 }
@@ -81,6 +81,3 @@ extension ConnectionTypeExtension on ConnectionType {
     }
   }
 }
-
-
-

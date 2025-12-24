@@ -13,28 +13,43 @@ class _HelpPageState extends State<HelpPage> {
     HelpItem(
       title: '快速连接',
       content: '使用快速连接来进行SSH/SFTP的连接操作。您连接过的主机也会自动添加到最近连接中',
-      imagePath: 'assets/quick.png',
+      imagePath: 'assets/quickconn.png',
     ),
     HelpItem(
       title: '管理连接',
       content: '在管理信息功能中可以管理保存的连接。您可以将现有的连接复制为其他类型，也可以进行编辑、导入、导出等操作',
-      imagePath: 'assets/quick.png',
+      imagePath: 'assets/mana_conn.png',
     ),
     HelpItem(
       title: '管理凭证',
       content: '在管理信息功能中可以管理保存的凭证。导入连接同时会导入所使用的凭证，您可在此对凭证进行编辑等操作',
-      imagePath: 'assets/quick.png',
+      imagePath: 'assets/mana_cer.png',
+    ),
+    HelpItem(
+      title: 'Telnet功能（Beta）',
+      content:
+          '在快速连接中点击telnet按钮即可使用，支持连接常见的服务器，支持用户名密码的自动输入。由于telnet标准不一致情况较多，如遇到无法使用等问题请及时反馈',
+      imagePath: 'assets/telnet.png',
     ),
     HelpItem(
       title: 'SSH功能',
-      content:
-          '在设置页面可以修改默认终端类型、默认主题、默认字体大小等，您也可以在页面的菜单中修改主题、字体大小。您可在菜单中开启多会话功能，目前该功能支持同时开启两个会话',
+      content: '在设置页面可以修改默认终端类型、默认主题、默认字体大小等，您也可以在页面的菜单中修改主题、字体大小。',
       imagePath: 'assets/ssh.png',
+    ),
+    HelpItem(
+      title: 'SSH多会话',
+      content: '您可在菜单中开启多会话功能，目前该功能支持同时开启两个会话',
+      imagePath: 'assets/ssh_multi.png',
     ),
     HelpItem(
       title: 'SFTP功能',
       content: 'SFTP连接后可通过顶部工具栏进行操作，支持侧滑返回上级，可通过切换视图按钮切换列表/图标视图',
-      imagePath: 'assets/ssh.png',
+      imagePath: 'assets/sftp.png',
+    ),
+    HelpItem(
+      title: '文本编辑',
+      content: '可以直接编辑服务器上的文件，支持常见文本格式和编码，支持代码高亮',
+      imagePath: 'assets/textedit.png',
     ),
     HelpItem(
       title: '数据面板（Beta）',
@@ -44,7 +59,7 @@ class _HelpPageState extends State<HelpPage> {
     HelpItem(
       title: '密钥和证书工具',
       content: '此功能可以解析证书的颁发者、有效期、算法等信息，也可以生成密钥对并上传到指定服务器的指定目录',
-      imagePath: 'assets/data.png',
+      imagePath: 'assets/keygen.png',
     ),
     HelpItem(
       title: '关于 & 反馈',
@@ -58,9 +73,8 @@ ConnSSH 版本 1.2.0
 • 新增了全局主题功能，支持调整主题色
 • 增加了生成并上传密钥对(RSA、ECDSA)功能
 • 支持了终端字体、类型、主题的全局设置，新增终端浅色主题，快捷栏支持收起（todo）
-• SFTP新增内建文本编辑器
-• 初步支持了telnet
-• 初步支持了2FA(todo)
+• SFTP新增内建文本编辑器，支持代码高亮等功能
+• 初步支持了telnet（Beta）
 
 问题改进：
 • 修复连接成功后快速连接窗口没有正常退出的问题
@@ -70,7 +84,8 @@ ConnSSH 版本 1.2.0
 • 修复了设置默认目录情况下，SFTP连接错误无法退出的问题
 • 证书解析支持华为Appgallery Connect颁发的cer证书
 • 修复了SFTP的部分操作逻辑错误
-• 重新设计了样式，修正了一些文字说明
+• 移动端竖屏模式下，最近连接修改为显示4个
+• 重新设计了部分样式，修正了一些文字说明
 
 
 如有问题或建议，请发送邮件至：

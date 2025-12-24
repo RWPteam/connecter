@@ -1259,6 +1259,10 @@ class _SettingsPageState extends State<SettingsPage> {
       'title': '帮助',
       'subtitle': '帮助文档、版本信息',
     },
+    {
+      'title': '开放源代码许可',
+      'subtitle': '查看应用使用的许可证',
+    },
   ];
 
   void _navigateToSettingsPage(int index, BuildContext context) {
@@ -1301,6 +1305,14 @@ class _SettingsPageState extends State<SettingsPage> {
           context,
           MaterialPageRoute(
             builder: (context) => const HelpPage(),
+          ),
+        );
+        break;
+      case 4:
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const LicensePage(),
           ),
         );
         break;
