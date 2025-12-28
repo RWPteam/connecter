@@ -1,14 +1,14 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import '../manage_credentials_page.dart';
+import '../pages/manage_credentials.dart';
 import 'package:uuid/uuid.dart';
 import '../models/connection_model.dart';
 import '../models/credential_model.dart';
 import '../services/storage_service.dart';
 import '../services/ssh_service.dart';
-import '../terminal_page.dart';
-import '../sftp_page.dart';
+import '../pages/terminal.dart';
+import '../pages/sftpview.dart';
 import 'telnet_connect_dialog.dart';
 
 class QuickConnectDialog extends StatefulWidget {

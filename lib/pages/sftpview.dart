@@ -9,11 +9,11 @@ import 'package:dartssh2/dartssh2.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
-import 'models/connection_model.dart';
-import 'models/credential_model.dart';
-import 'services/setting_service.dart';
-import 'models/app_settings_model.dart';
-import 'services/ssh_service.dart';
+import '../models/connection_model.dart';
+import '../models/credential_model.dart';
+import '../services/setting_service.dart';
+import '../models/app_settings_model.dart';
+import '../services/ssh_service.dart';
 //import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
 
 enum ViewMode { list, icon }

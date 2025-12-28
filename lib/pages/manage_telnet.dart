@@ -1,10 +1,10 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import '../services/telnet_storage_service.dart';
-import '../models/telnet_connection_model.dart';
-import 'services/telnet_service.dart';
-import 'telnet_terminal_page.dart';
-import 'components/telnet_connect_dialog.dart';
+import '../../services/telnet_storage_service.dart';
+import '../../models/telnet_connection_model.dart';
+import '../services/telnet_service.dart';
+import 'telnet_terminal.dart';
+import '../components/telnet_connect_dialog.dart';
 
 class ManageTelnetConnectionsPage extends StatefulWidget {
   const ManageTelnetConnectionsPage({super.key});

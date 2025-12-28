@@ -1,22 +1,19 @@
 // ignore_for_file: use_build_context_synchronously
 import 'dart:async';
 import 'dart:io';
-import 'package:connssh/manage_telnet_connections_page.dart';
+import 'package:connssh/pages/transfer/info.dart';
+import 'package:connssh/pages/transfer/util.dart';
 
-import 'monitor_server_page.dart';
-import 'read_key_info_page.dart';
-import 'setting_page.dart';
+import 'setting.dart';
 import 'package:flutter/material.dart';
-import 'manage_connections_page.dart';
-import 'manage_credentials_page.dart';
-import 'components/quick_connect_dialog.dart';
-import 'models/connection_model.dart';
-import 'services/setting_service.dart';
-import 'services/storage_service.dart';
-import 'services/ssh_service.dart';
-import 'help_page.dart';
-import 'terminal_page.dart';
-import 'sftp_page.dart';
+import '../components/quick_connect_dialog.dart';
+import '../models/connection_model.dart';
+import '../services/setting_service.dart';
+import '../services/storage_service.dart';
+import '../services/ssh_service.dart';
+import 'help.dart';
+import 'terminal.dart';
+import 'sftpview.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter/services.dart';
 
@@ -99,13 +96,13 @@ class _MainPageState extends State<MainPage> {
             title: const Text('权限申请'),
             content: const Text('请授予存储权限，用于凭据存储和SFTP文件上传、下载功能'),
             actions: [
-              TextButton(
+              OutlinedButton(
                 onPressed: () {
                   Navigator.of(context).pop(false);
                 },
                 child: const Text('取消'),
               ),
-              TextButton(
+              OutlinedButton(
                 onPressed: () {
                   Navigator.of(context).pop(true);
                 },
@@ -148,7 +145,7 @@ class _MainPageState extends State<MainPage> {
           title: const Text('权限未授予'),
           content: const Text('应用需要存储和后台运行权限才能正常工作'),
           actions: [
-            TextButton(
+            OutlinedButton(
               onPressed: _exitApp,
               child: const Text('退出应用'),
             ),
@@ -202,7 +199,7 @@ class _MainPageState extends State<MainPage> {
             ],
           ),
           actions: [
-            TextButton(
+            OutlinedButton(
               onPressed: () => Navigator.of(context).pop(),
               child: const Text('关闭'),
             ),
@@ -550,14 +547,19 @@ class _MainPageState extends State<MainPage> {
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 child: Row(
                   children: [
-                    SizedBox(
-                      width: 24,
+                    Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.withOpacity(0.1),
+                        shape: BoxShape.circle,
+                      ),
                       child: Icon(
                         connection.isPinned
                             ? Icons.vertical_align_top
                             : _getConnectionIcon(connection.type),
-                        size: 20,
-                        color: Color.fromARGB(255, 117, 117, 117),
+                        size: 16,
+                        color: Theme.of(context).colorScheme.primary,
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -658,15 +660,19 @@ class _MainPageState extends State<MainPage> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                // 左侧图标
+                // 左侧图标 - 已修改为圆形背景样式
                 Container(
                   width: 40,
-                  alignment: Alignment.center,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
                   child: Icon(
                     connection.isPinned
                         ? Icons.vertical_align_top
                         : _getConnectionIcon(connection.type),
-                    color: Color.fromARGB(255, 117, 117, 117),
+                    color: Theme.of(context).colorScheme.primary,
                     size: isLargeHeight ? 24 : 20,
                   ),
                 ),
@@ -1010,13 +1016,29 @@ class _MainPageState extends State<MainPage> {
       ),
       const SizedBox(height: 16),
       buildButton(
-        onPressed: _showManagementOptions,
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const ManageInfoPage(),
+            ),
+          ).then((_) {
+            _loadRecentConnections();
+          });
+        },
         title: '管理信息',
         subtitle: '管理连接配置、认证凭证',
       ),
       const SizedBox(height: 16),
       buildButton(
-        onPressed: _showUtilityTools,
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const UtilityToolsPage(),
+            ),
+          );
+        },
         title: '实用工具',
         subtitle: '服务器数据面板、密钥和证书工具',
       ),
@@ -1032,156 +1054,5 @@ class _MainPageState extends State<MainPage> {
         subtitle: "查看设置、教程和版本信息",
       ),
     ];
-  }
-
-  void _showManagementOptions() {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('管理信息'),
-          content: const Text('请选择：'),
-          actions: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                    child: OutlinedButton.icon(
-                      onPressed: () {
-                        Navigator.of(context).pop();
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const ManageConnectionsPage(),
-                          ),
-                        ).then((_) {
-                          _loadRecentConnections();
-                        });
-                      },
-                      label: const Text('SSH/SFTP'),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                    child: OutlinedButton.icon(
-                      onPressed: () {
-                        Navigator.of(context).pop();
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const ManageCredentialsPage(),
-                          ),
-                        );
-                      },
-                      label: const Text('凭证'),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                    child: OutlinedButton.icon(
-                      onPressed: () {
-                        Navigator.of(context).pop();
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) =>
-                                const ManageTelnetConnectionsPage(),
-                          ),
-                        );
-                      },
-                      label: const Text('Telnet'),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('取消'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  void _showUtilityTools() {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('实用工具'),
-          content: const Text('请选择：'),
-          actions: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                    child: OutlinedButton.icon(
-                      onPressed: () {
-                        Navigator.of(context).pop();
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const MonitorServerPage(),
-                          ),
-                        );
-                      },
-                      label: const Text('数据面板'),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                    child: OutlinedButton.icon(
-                      onPressed: () {
-                        Navigator.of(context).pop();
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const ReadKeyInfoPage(),
-                          ),
-                        );
-                      },
-                      label: const Text('密钥和证书工具'),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('取消'),
-            ),
-          ],
-        );
-      },
-    );
   }
 }

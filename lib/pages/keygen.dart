@@ -6,12 +6,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:dartssh2/dartssh2.dart';
-import 'models/connection_model.dart';
-import 'services/rsa_key_service.dart';
-import 'services/ecdsa_key_service.dart';
-import 'services/storage_service.dart';
-import 'services/ssh_service.dart';
-import 'components/quick_connect_dialog.dart';
+import '../models/connection_model.dart';
+import '../services/rsa_key_service.dart';
+import '../services/ecdsa_key_service.dart';
+import '../services/storage_service.dart';
+import '../services/ssh_service.dart';
+import '../components/quick_connect_dialog.dart';
 
 class KeygenPage extends StatefulWidget {
   const KeygenPage({super.key});
@@ -219,7 +219,7 @@ class _KeygenPageState extends State<KeygenPage> {
           title: const Text('提示'),
           content: const Text('没有保存的服务器连接，请先连接'),
           actions: [
-            TextButton(
+            OutlinedButton(
               onPressed: () => Navigator.of(context).pop(false),
               child: const Text('取消'),
             ),
@@ -295,7 +295,7 @@ class _KeygenPageState extends State<KeygenPage> {
           ),
         ),
         actions: [
-          TextButton(
+          OutlinedButton(
             onPressed: () => Navigator.of(context).pop(),
             child: const Text('取消'),
           ),
@@ -318,7 +318,7 @@ class _KeygenPageState extends State<KeygenPage> {
           ),
         ),
         actions: [
-          TextButton(
+          OutlinedButton(
             onPressed: () => Navigator.of(context).pop(),
             child: const Text('取消'),
           ),

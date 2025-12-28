@@ -4,7 +4,7 @@ import 'package:uuid/uuid.dart';
 import '../models/telnet_connection_model.dart';
 import '../services/telnet_service.dart';
 import '../services/telnet_storage_service.dart';
-import '../telnet_terminal_page.dart';
+import '../pages/telnet_terminal.dart';
 
 class TelnetConnectDialog extends StatefulWidget {
   final TelnetConnectionInfo? connection;

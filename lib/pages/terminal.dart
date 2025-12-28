@@ -1,13 +1,14 @@
+// terminal_page.dart（修改后的部分）
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:xterm/xterm.dart';
 import 'package:dartssh2/dartssh2.dart';
-import 'models/connection_model.dart';
-import 'models/credential_model.dart';
-import 'services/ssh_service.dart';
-import 'services/setting_service.dart';
+import '../models/connection_model.dart';
+import '../models/credential_model.dart';
+import '../services/ssh_service.dart';
+import '../services/setting_service.dart';
 
 class TerminalPage extends StatefulWidget {
   final ConnectionInfo connection;
@@ -56,7 +57,7 @@ class _TerminalPageState extends State<TerminalPage> {
   bool _ismobile = defaultTargetPlatform == TargetPlatform.android ||
       defaultTargetPlatform == TargetPlatform.ohos ||
       defaultTargetPlatform == TargetPlatform.iOS;
-  bool _showToolbar = false; // 添加：快捷栏显示状态
+  bool _showToolbar = false;
 
   // 主题选择
   bool _isThemeSelectorVisible = false;
@@ -66,6 +67,26 @@ class _TerminalPageState extends State<TerminalPage> {
 
   // 终端类型
   String _termType = 'xterm-256color';
+
+  // 工具栏布局
+  List<int> _toolbarLayout = const [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16
+  ];
 
   // 设置服务
   final SettingsService _settingsService = SettingsService();
@@ -146,6 +167,9 @@ class _TerminalPageState extends State<TerminalPage> {
       // 设置终端类型
       _termType = settings.termType;
 
+      // 设置工具栏布局
+      _toolbarLayout = settings.toolbarLayout;
+
       if (mounted) {
         setState(() {});
       }
@@ -156,6 +180,24 @@ class _TerminalPageState extends State<TerminalPage> {
       _selectedThemeName = 'dark';
       _termType = 'xterm-256color';
       _fontSize = 14.0;
+      _toolbarLayout = const [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16
+      ];
     }
   }
 
@@ -883,7 +925,8 @@ class _TerminalPageState extends State<TerminalPage> {
                   textStyle:
                       TerminalStyle(fontSize: _fontSize, fontFamily: 'maple'),
                   theme: _currentTheme,
-                  showToolbar: _showToolbar, // 修改为使用 _showToolbar 变量
+                  showToolbar: _showToolbar,
+                  toolbarLayout: _toolbarLayout,
                   readOnly: _shouldBeReadOnly,
                 )
               : const Center(

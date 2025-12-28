@@ -8,6 +8,7 @@ class AppSettings {
   final String termType;
   final String defaultPageTheme;
   final String defaultThemeMode;
+  final List<int> toolbarLayout;
 
   const AppSettings({
     this.defaultSftpPath,
@@ -18,6 +19,24 @@ class AppSettings {
     this.termType = 'xterm-256color',
     this.defaultPageTheme = 'default',
     this.defaultThemeMode = 'system',
+    this.toolbarLayout = const [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16
+    ],
   });
 
   AppSettings copyWith({
@@ -29,6 +48,7 @@ class AppSettings {
     String? termType,
     String? defaultPageTheme,
     String? defaultThemeMode,
+    List<int>? toolbarLayout,
   }) {
     return AppSettings(
       defaultSftpPath: defaultSftpPath ?? this.defaultSftpPath,
@@ -39,6 +59,7 @@ class AppSettings {
       termType: termType ?? this.termType,
       defaultPageTheme: defaultPageTheme ?? this.defaultPageTheme,
       defaultThemeMode: defaultThemeMode ?? this.defaultThemeMode,
+      toolbarLayout: toolbarLayout ?? this.toolbarLayout,
     );
   }
 
@@ -52,6 +73,7 @@ class AppSettings {
       'termType': termType,
       'defaultPageTheme': defaultPageTheme,
       'defaultThemeMode': defaultThemeMode,
+      'toolbarLayout': toolbarLayout,
     };
   }
 
@@ -60,11 +82,13 @@ class AppSettings {
       defaultSftpPath: map['defaultSftpPath'],
       defaultDownloadPath: map['defaultDownloadPath'],
       isFirstRun: map['isFirstRun'] ?? true,
-      defaultFontSize: map['defaultFontSize']?.toDouble() ?? 10.0,
+      defaultFontSize: map['defaultFontSize']?.toDouble() ?? 12.0,
       defaultTermTheme: map['defaultTermTheme'] ?? 'dark',
       termType: map['termType'] ?? 'xterm-256color',
       defaultPageTheme: map['defaultPageTheme'] ?? 'default',
       defaultThemeMode: map['defaultThemeMode'] ?? 'system',
+      toolbarLayout: List<int>.from(map['toolbarLayout'] ??
+          [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]),
     );
   }
 
@@ -78,6 +102,7 @@ class AppSettings {
       termType: 'xterm-256color',
       defaultPageTheme: 'default',
       defaultThemeMode: 'system',
+      toolbarLayout: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
     );
   }
 }

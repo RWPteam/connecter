@@ -2,21 +2,20 @@
 
 import 'dart:convert';
 import 'dart:io';
-import 'package:connssh/keygen_page.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/services.dart';
 import 'package:basic_utils/basic_utils.dart';
 
-class ReadKeyInfoPage extends StatefulWidget {
-  const ReadKeyInfoPage({super.key});
+class ReadCerInfoPage extends StatefulWidget {
+  const ReadCerInfoPage({super.key});
 
   @override
-  State<ReadKeyInfoPage> createState() => _ReadKeyInfoPageState();
+  State<ReadCerInfoPage> createState() => _ReadCerInfoPageState();
 }
 
-class _ReadKeyInfoPageState extends State<ReadKeyInfoPage> {
+class _ReadCerInfoPageState extends State<ReadCerInfoPage> {
   String? _fileName;
   String? _keyContent;
   bool _isProcessing = false;
@@ -225,13 +224,6 @@ class _ReadKeyInfoPageState extends State<ReadKeyInfoPage> {
     });
   }
 
-  void _navigateToKeyGen() {
-    if (mounted) {
-      Navigator.push(
-          context, MaterialPageRoute(builder: (context) => KeygenPage()));
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -256,13 +248,6 @@ class _ReadKeyInfoPageState extends State<ReadKeyInfoPage> {
                 if (_showPasteField) {_pasteController.clear()}
               },
               title: '从剪贴板粘贴',
-            ),
-            const SizedBox(height: 16),
-            const Text('密钥工具', style: TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 16),
-            _buildActionButton(
-              onPressed: _navigateToKeyGen,
-              title: '密钥生成',
             ),
             if (_showPasteField) _buildPasteArea(),
             if (_multipleCertificates.length > 1) _buildCertificateSwitcher(),

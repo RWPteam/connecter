@@ -1,11 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'models/connection_model.dart';
-import 'models/credential_model.dart';
-import 'services/storage_service.dart';
-import 'services/ssh_service.dart';
-import 'components/quick_connect_dialog.dart';
+import '../models/connection_model.dart';
+import '../models/credential_model.dart';
+import '../services/storage_service.dart';
+import '../services/ssh_service.dart';
+import '../components/quick_connect_dialog.dart';
 
 class ServerMetrics {
   final double cpuUsage;
@@ -102,10 +102,8 @@ class _MonitorServerPageState extends State<MonitorServerPage> {
     #!/bin/bash
     export LC_ALL=C
     set +o history
-    set +o vi
 
     get_cpu() {
-
       read cpu a b c idle rest < /proc/stat 2>/dev/null
       total=$((a+b+c+idle))
       sleep 0.1 
@@ -123,12 +121,19 @@ class _MonitorServerPageState extends State<MonitorServerPage> {
     }
 
     get_disk() {
-      df -h 2>/dev/null | grep -E '^/dev/|^/' | grep -vE 'loop|tmpfs|snap' | awk 'BEGIN{ORS=","} {printf "{\"filesystem\":\"%s\",\"size\":\"%s\",\"used\":\"%s\",\"available\":\"%s\",\"usePercent\":\"%s\",\"mounted\":\"%s\"}", $1, $2, $3, $4, $5, $6}' | sed 's/,$//'
+      # 使用 -Ph 防止换行，并改用 awk 内部处理逗号逻辑
+      df -Ph 2>/dev/null | grep -E '^/dev/|^/' | grep -vE 'loop|tmpfs|snap' | awk '
+      BEGIN { first=1 }
+      {
+        if (!first) printf ",";
+        printf "{\"filesystem\":\"%s\",\"size\":\"%s\",\"used\":\"%s\",\"available\":\"%s\",\"usePercent\":\"%s\",\"mounted\":\"%s\"}", $1, $2, $3, $4, $5, $6;
+        first=0
+      }'
     }
 
     get_load() {
       read l1 l5 l15 rest < /proc/loadavg 2>/dev/null
-      printf "{\"1min\":%s,\"5min\":%s,\"15min\":%s}" $l1 $l5 $l15
+      printf "{\"1min\":%s,\"5min\":%s,\"15min\":%s}" ${l1:-0} ${l5:-0} ${l15:-0}
     }
 
     get_uptime() {
@@ -142,7 +147,7 @@ class _MonitorServerPageState extends State<MonitorServerPage> {
     UPTIME=$(get_uptime)
 
     echo "{\"cpu\":$CPU_RAW, \"memory\":$MEM, \"disk\":[$DISK], \"load\":$LOAD, \"uptime\":\"$UPTIME\"}"
-    ''';
+  ''';
 
   final String _cleanupScriptCommand = 'rm -f /tmp/connssh_monitor.sh';
   final String _monitorScriptPath = '/tmp/connssh_monitor.sh';
@@ -402,7 +407,6 @@ class _MonitorServerPageState extends State<MonitorServerPage> {
     );
   }
 
-  // 构建连接控制面板（用于横屏模式下的左侧部分）
   Widget _buildConnectionPanel() {
     final colorScheme = Theme.of(context).colorScheme;
     final Map<String, ConnectionInfo> uniqueMap = {};
@@ -568,7 +572,6 @@ class _MonitorServerPageState extends State<MonitorServerPage> {
     );
   }
 
-  // 构建数据展示面板（用于横屏模式下的右侧部分）
   Widget _buildDataPanel() {
     final colorScheme = Theme.of(context).colorScheme;
 
