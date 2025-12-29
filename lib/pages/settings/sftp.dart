@@ -116,28 +116,12 @@ class _SFTPSettingsPageState extends State<SFTPSettingsPage> {
   }
 
   void _showDownloadPathDialog() {
-    if (Platform.isOhos) {
+    if (Platform.isWindows || Platform.operatingSystem == 'ohos') {
       showDialog(
         context: context,
         builder: (context) => AlertDialog(
           title: const Text('提示'),
-          content: const Text('HarmonyOS平台仅支持保存在沙盒目录'),
-          actions: [
-            OutlinedButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('确定'),
-            ),
-          ],
-        ),
-      );
-      return;
-    }
-    if (Platform.isWindows) {
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('提示'),
-          content: const Text('Windows平台请在下载文件时选择保存位置'),
+          content: const Text('您所使用的平台请在下载文件时选择保存位置'),
           actions: [
             OutlinedButton(
               onPressed: () => Navigator.of(context).pop(),

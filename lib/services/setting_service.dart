@@ -102,4 +102,6 @@ class SettingsService {
 
     return null;
   }
+
+  void updateSettings(AppSettings copyWith) {}
 }

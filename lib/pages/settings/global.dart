@@ -1,5 +1,5 @@
 // global_settings_page.dart
-import 'package:file_selector/file_selector.dart';
+import 'package:file_picker_ohos/file_picker_ohos.dart';
 import 'package:flutter/material.dart';
 import 'package:connssh/main.dart';
 import '../../models/app_settings_model.dart';
@@ -63,13 +63,12 @@ class _GlobalSettingsPageState extends State<GlobalSettingsPage> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text('请输入备份密码', style: TextStyle(fontSize: 14)),
                   const SizedBox(height: 16),
                   TextField(
                     controller: passwordController,
                     obscureText: passwordObscure,
                     decoration: InputDecoration(
-                      labelText: '密码',
+                      labelText: '请设置密码',
                       border: const OutlineInputBorder(),
                       suffixIcon: IconButton(
                         icon: Icon(passwordObscure
@@ -202,37 +201,23 @@ class _GlobalSettingsPageState extends State<GlobalSettingsPage> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text(
-                    '选择备份文件并输入密码',
-                    style: TextStyle(fontSize: 14),
-                  ),
                   const SizedBox(height: 16),
                   OutlinedButton.icon(
                     onPressed: () async {
                       try {
-                        // 使用 file_selector 选择文件
-                        const XTypeGroup typeGroup = XTypeGroup(
-                          label: 'ConnSSH Backup',
-                          extensions: ['cntinfo'],
-                        );
-                        final XFile? file = await openFile(
-                          acceptedTypeGroups: [typeGroup],
+                        final FilePickerResult? result =
+                            await FilePicker.platform.pickFiles(
+                          type: FileType.custom,
+                          allowedExtensions: ['cntinfo'],
+                          dialogTitle: '选择备份文件',
+                          allowMultiple: false,
                         );
 
-                        if (file != null) {
+                        if (result != null && result.files.isNotEmpty) {
+                          PlatformFile file = result.files.first;
                           setState(() {
                             selectedFilePath = file.path;
                           });
-
-                          // 显示选择的文件名
-                          if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('已选择文件: ${file.name}'),
-                                duration: const Duration(seconds: 2),
-                              ),
-                            );
-                          }
                         }
                       } catch (e) {
                         debugPrint('选择文件失败: $e');
@@ -240,7 +225,6 @@ class _GlobalSettingsPageState extends State<GlobalSettingsPage> {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text('选择文件失败: $e'),
-                              backgroundColor: Colors.red,
                             ),
                           );
                         }
@@ -257,15 +241,6 @@ class _GlobalSettingsPageState extends State<GlobalSettingsPage> {
                   ),
                   if (selectedFilePath != null) ...[
                     const SizedBox(height: 8),
-                    Text(
-                      '文件路径: ${selectedFilePath!.length > 50 ? '...${selectedFilePath!.substring(selectedFilePath!.length - 50)}' : selectedFilePath!}',
-                      style: const TextStyle(
-                        fontSize: 10,
-                        color: Colors.grey,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
                   ],
                   const SizedBox(height: 12),
                   TextField(
@@ -315,10 +290,11 @@ class _GlobalSettingsPageState extends State<GlobalSettingsPage> {
                         showDialog(
                           context: context,
                           builder: (context) => AlertDialog(
-                            title: const Text('确认恢复'),
-                            content: const Text(
-                              '此操作将覆盖所有现有数据，且不可撤销，确定要恢复吗？',
-                            ),
+                            title: const Text('这是最后一次确认'),
+                            content: const Text('此操作将覆盖所有现有数据，且不可撤销，确定要恢复吗？',
+                                style: TextStyle(
+                                    color: Colors.red,
+                                    fontWeight: FontWeight.bold)),
                             actions: [
                               OutlinedButton(
                                 onPressed: () => Navigator.of(context).pop(),
@@ -332,7 +308,9 @@ class _GlobalSettingsPageState extends State<GlobalSettingsPage> {
                                     Navigator.of(context, rootNavigator: true)
                                         .pop();
                                   }
-
+                                  final NavigatorState navigator = Navigator.of(
+                                      this.context,
+                                      rootNavigator: true);
                                   showDialog(
                                     context: context,
                                     barrierDismissible: false,
@@ -360,17 +338,13 @@ class _GlobalSettingsPageState extends State<GlobalSettingsPage> {
                                       backupData,
                                     );
 
-                                    // 关闭加载对话框
-                                    if (Navigator.of(context,
-                                            rootNavigator: true)
-                                        .canPop()) {
-                                      Navigator.of(context, rootNavigator: true)
-                                          .pop();
+                                    if (navigator.canPop()) {
+                                      navigator.pop();
                                     }
 
                                     // 刷新应用
                                     widget.onSettingsChanged();
-                                    MyApp.of(context)?.loadSettings();
+                                    MyApp.of(this.context)?.loadSettings();
 
                                     showDialog(
                                       context: context,
@@ -385,10 +359,8 @@ class _GlobalSettingsPageState extends State<GlobalSettingsPage> {
                                         actions: [
                                           OutlinedButton(
                                             onPressed: () {
-                                              Navigator.of(context).pop();
-                                              if (Navigator.of(context)
-                                                  .canPop()) {
-                                                Navigator.of(context).pop();
+                                              if (navigator.canPop()) {
+                                                navigator.pop();
                                               }
                                             },
                                             child: const Text('确定'),
@@ -458,7 +430,6 @@ class _GlobalSettingsPageState extends State<GlobalSettingsPage> {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                     content: Text('已恢复默认设置'),
-                    duration: Duration(seconds: 2),
                   ),
                 );
               }

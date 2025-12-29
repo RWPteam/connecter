@@ -3,6 +3,7 @@
 import 'dart:io';
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:connssh/components/file_editor.dart';
 import 'package:file_picker_ohos/file_picker_ohos.dart';
 import 'package:flutter/material.dart';
@@ -11,13 +12,13 @@ import 'package:file_selector/file_selector.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../models/connection_model.dart';
 import '../models/credential_model.dart';
 import '../services/setting_service.dart';
 import '../models/app_settings_model.dart';
 import '../services/ssh_service.dart';
 import 'package:path/path.dart' as path;
-//import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
 
 enum ViewMode { list, icon }
 
@@ -53,7 +54,6 @@ class _SftpPageState extends State<SftpPage> {
 
   SSHClient? _sshClient;
   dynamic _sftpClient;
-  // 修改剪贴板为支持多个文件
   final List<ClipboardItem> _clipboardItems = [];
   bool _clipboardIsCut = false;
   List<dynamic> _fileList = [];
@@ -75,7 +75,6 @@ class _SftpPageState extends State<SftpPage> {
   DateTime? _lastBackPressedTime;
   bool _isProgressDialogOpen = false;
 
-  // 判断是否为移动设备
   bool get _ismobile =>
       defaultTargetPlatform == TargetPlatform.android ||
       defaultTargetPlatform == TargetPlatform.ohos ||
@@ -99,7 +98,6 @@ class _SftpPageState extends State<SftpPage> {
         : Colors.grey[600]!;
   }
 
-  // 获取AppBar背景色
   Color _getAppBarColor() {
     if (_isConnecting) return Colors.grey.shade700;
     if (_isConnected) return Theme.of(context).primaryColor;
@@ -193,13 +191,11 @@ class _SftpPageState extends State<SftpPage> {
 
   Widget _buildSingleRowToolbar(Color iconColor, Color disabledIconColor,
       bool hasSelection, bool singleSelection, bool isWideScreen) {
-    // 判断是否显示编辑按钮
     bool showEditButton = _isMultiSelectMode &&
         _selectedFiles.length == 1 &&
-        !_isSelectedItemDirectory() && // 检查选中的不是文件夹
+        !_isSelectedItemDirectory() &&
         _isTextFile(_selectedFiles.first);
 
-    // 判断上传按钮是否可用
     bool uploadEnabled = !_isMultiSelectMode ||
         (_isMultiSelectMode &&
             _selectedFiles.isEmpty &&
@@ -224,7 +220,6 @@ class _SftpPageState extends State<SftpPage> {
                   tooltip: '/',
                 ),
               const SizedBox(width: 3),
-              // 上传/编辑按钮
               if (showEditButton)
                 _buildIconButton(
                   Icons.edit,
@@ -252,7 +247,6 @@ class _SftpPageState extends State<SftpPage> {
                   hasSelection ? _deleteSelectedFiles : null,
                   hasSelection ? iconColor : disabledIconColor),
               const SizedBox(width: 3),
-              // 修改为新建按钮，点击弹出dialog选择文件/文件夹
               _buildIconButton(
                   Icons.create_new_folder, '新建', _showCreateDialog, iconColor),
               const SizedBox(width: 3),
@@ -350,12 +344,11 @@ class _SftpPageState extends State<SftpPage> {
                         Icons.circle_outlined, '/', null, disabledIconColor,
                         iconSize: 20),
               ),
-              // 上传/编辑按钮
               SizedBox(
                 width: buttonWidth,
                 child: _isMultiSelectMode &&
                         _selectedFiles.length == 1 &&
-                        !_isSelectedItemDirectory() && // 检查选中的不是文件夹
+                        !_isSelectedItemDirectory() &&
                         _isTextFile(_selectedFiles.first)
                     ? _buildIconButton(
                         Icons.edit, '编辑', _editSelectedFile, iconColor,
@@ -395,14 +388,12 @@ class _SftpPageState extends State<SftpPage> {
                     hasSelection ? iconColor : disabledIconColor,
                     iconSize: 20),
               ),
-              // 新建按钮
               SizedBox(
                 width: buttonWidth,
                 child: _buildIconButton(
                     Icons.create_new_folder, '新建', _showCreateDialog, iconColor,
                     iconSize: 20),
               ),
-              // 全选按钮
               SizedBox(
                 width: buttonWidth,
                 child: _buildIconButton(
@@ -484,7 +475,6 @@ class _SftpPageState extends State<SftpPage> {
     );
   }
 
-  // 检查选中的项目是否为文件夹
   bool _isSelectedItemDirectory() {
     if (_selectedFiles.isEmpty) return false;
 
@@ -526,7 +516,6 @@ class _SftpPageState extends State<SftpPage> {
     );
   }
 
-  // 判断是否为文本文件
   bool _isTextFile(String filename) {
     final textFileExtensions = [
       '.txt',
@@ -752,106 +741,398 @@ class _SftpPageState extends State<SftpPage> {
     if (!await _checkConnection()) return;
 
     try {
-      // 使用 file_selector 替代 file_picker
-      const XTypeGroup typeGroup =
-          XTypeGroup(label: 'files', extensions: <String>[]);
-      final XFile? file =
-          await openFile(acceptedTypeGroups: <XTypeGroup>[typeGroup]);
+      if (Platform.operatingSystem == 'ohos') {
+        FilePickerResult? result = await FilePicker.platform.pickFiles(
+          allowMultiple: false,
+          type: FileType.any,
+          dialogTitle: '选择要上传的文件',
+        );
 
-      if (file == null || !mounted) return;
+        if (result == null || result.files.isEmpty) return;
 
-      _showProgressDialog('上传文件', showCancel: true);
-      _cancelOperation = false;
+        final platformFile = result.files.first;
+        final filePath = platformFile.path;
 
-      int successCount = 0;
-      int totalCount = 1;
-      int skippedCount = 0;
+        if (filePath == null || filePath.isEmpty) {
+          debugPrint('文件路径为空: ${platformFile.name}');
+          return;
+        }
 
-      if (!await _checkConnection()) return;
-      if (_cancelOperation) return;
+        _showProgressDialog('上传文件', showCancel: true);
+        _cancelOperation = false;
 
-      final localFile = File(file.path);
-      final remotePath = _joinPath(_currentPath, file.name);
-      if (!await localFile.exists()) return;
+        final localFile = File(filePath);
+        if (!await localFile.exists()) {
+          debugPrint('文件不存在: $filePath');
+          if (mounted) {
+            try {
+              Navigator.of(context).pop();
+            } catch (_) {}
+          }
+          return;
+        }
 
-      bool fileExists = false;
-      try {
-        await _sftpClient.stat(remotePath);
-        fileExists = true;
-      } catch (e) {
-        fileExists = false;
-      }
+        final remotePath = _joinPath(_currentPath, platformFile.name);
+        bool fileExists = false;
+        try {
+          await _sftpClient.stat(remotePath);
+          fileExists = true;
+        } catch (e) {
+          fileExists = false;
+        }
 
-      if (fileExists) {
-        if (mounted) {
-          Navigator.of(context).pop();
-          final shouldOverwrite = await showDialog<bool>(
-            context: context,
-            barrierDismissible: false,
-            builder: (context) => AlertDialog(
-              title: const Text('文件'),
-              content: Text('文件 "${file.name}" 已存在，是否覆盖？'),
-              actions: [
-                OutlinedButton(
-                  onPressed: () => Navigator.of(context).pop(false),
-                  child: const Text('跳过'),
-                ),
-                OutlinedButton(
-                  onPressed: () => Navigator.of(context).pop(true),
-                  child: const Text('覆盖', style: TextStyle(color: Colors.red)),
-                ),
-              ],
-            ),
-          );
+        if (fileExists) {
+          if (mounted) {
+            try {
+              Navigator.of(context).pop();
+            } catch (_) {}
+
+            final shouldOverwrite = await showDialog<bool>(
+              context: context,
+              barrierDismissible: false,
+              builder: (context) => AlertDialog(
+                title: const Text('文件已存在'),
+                content: Text('文件 "${platformFile.name}" 已存在，是否覆盖？'),
+                actions: [
+                  OutlinedButton(
+                    onPressed: () => Navigator.of(context).pop(false),
+                    child: const Text('跳过'),
+                  ),
+                  OutlinedButton(
+                    onPressed: () => Navigator.of(context).pop(true),
+                    child:
+                        const Text('覆盖', style: TextStyle(color: Colors.red)),
+                  ),
+                ],
+              ),
+            );
+
+            if (shouldOverwrite == false) {
+              return;
+            }
+          }
           _showProgressDialog('上传文件', showCancel: true);
-          if (shouldOverwrite == false) {
-            skippedCount++;
-            return;
+        }
+
+        final fileSize = await localFile.length();
+        setState(() {
+          _currentOperation = '正在上传: ${platformFile.name}';
+          _uploadProgress = 0.0;
+        });
+
+        try {
+          final remote = await _sftpClient.open(
+            remotePath,
+            mode: SftpFileOpenMode.create |
+                SftpFileOpenMode.write |
+                SftpFileOpenMode.truncate,
+          );
+          _currentUploader = remote;
+
+          int offset = 0;
+          final stream = localFile.openRead();
+          await for (final chunk in stream) {
+            if (!await _checkConnection()) break;
+            if (_cancelOperation) break;
+
+            await remote.writeBytes(chunk, offset: offset);
+            offset += chunk.length;
+
+            if (mounted) {
+              setState(() {
+                _uploadProgress = fileSize > 0 ? offset / fileSize : 0.0;
+              });
+            }
+          }
+
+          await remote.close();
+          _currentUploader = null;
+
+          if (mounted) {
+            try {
+              Navigator.of(context).pop();
+            } catch (_) {}
+
+            if (!_cancelOperation) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('上传完成: ${platformFile.name}'),
+                  duration: const Duration(seconds: 3),
+                ),
+              );
+
+              await _loadDirectory(_currentPath);
+            }
+          }
+        } catch (e) {
+          debugPrint('上传文件 ${platformFile.name} 失败: $e');
+          try {
+            await _currentUploader?.close();
+          } catch (_) {}
+          _currentUploader = null;
+
+          if (mounted) {
+            try {
+              Navigator.of(context).pop();
+            } catch (_) {}
+            _showErrorDialog('上传失败', e.toString());
           }
         }
-      }
+      } else if (Platform.isAndroid) {
+        FilePickerResult? result = await FilePicker.platform.pickFiles(
+          allowMultiple: true,
+          type: FileType.any,
+          dialogTitle: '选择要上传的文件',
+        );
 
-      final fileSize = await localFile.length();
-      setState(() {
-        _currentOperation = '正在上传: ${file.name} (1 / 1)';
-        _uploadProgress = 0.0;
-      });
+        if (result == null || result.files.isEmpty) return;
 
-      final remote = await _sftpClient.open(
-        remotePath,
-        mode: SftpFileOpenMode.create |
-            SftpFileOpenMode.write |
-            SftpFileOpenMode.truncate,
-      );
-      _currentUploader = remote;
+        _showProgressDialog('上传文件', showCancel: true);
+        _cancelOperation = false;
 
-      int offset = 0;
-      await for (final chunk in localFile.openRead()) {
-        if (!await _checkConnection()) break;
-        if (_cancelOperation) break;
+        int successCount = 0;
+        int totalCount = result.files.length;
+        int skippedCount = 0;
 
-        await remote.writeBytes(chunk, offset: offset);
-        offset += chunk.length;
-        if (mounted) {
+        for (int i = 0; i < totalCount; i++) {
+          if (!await _checkConnection()) break;
+          if (_cancelOperation) break;
+
+          final platformFile = result.files[i];
+          final filePath = platformFile.path;
+
+          if (filePath == null || filePath.isEmpty) {
+            debugPrint('文件路径为空: ${platformFile.name}');
+            continue;
+          }
+
+          final localFile = File(filePath);
+          if (!await localFile.exists()) {
+            debugPrint('文件不存在: $filePath');
+            continue;
+          }
+
+          final remotePath = _joinPath(_currentPath, platformFile.name);
+
+          bool fileExists = false;
+          try {
+            await _sftpClient.stat(remotePath);
+            fileExists = true;
+          } catch (e) {
+            fileExists = false;
+          }
+
+          if (fileExists) {
+            if (mounted) {
+              final shouldOverwrite = await showDialog<bool>(
+                context: context,
+                barrierDismissible: false,
+                builder: (context) => AlertDialog(
+                  title: const Text('文件已存在'),
+                  content: Text('文件 "${platformFile.name}" 已存在，是否覆盖？'),
+                  actions: [
+                    OutlinedButton(
+                      onPressed: () => Navigator.of(context).pop(false),
+                      child: const Text('跳过'),
+                    ),
+                    OutlinedButton(
+                      onPressed: () => Navigator.of(context).pop(true),
+                      child:
+                          const Text('覆盖', style: TextStyle(color: Colors.red)),
+                    ),
+                  ],
+                ),
+              );
+
+              if (shouldOverwrite == false) {
+                skippedCount++;
+                continue;
+              }
+            }
+          }
+
+          final fileSize = await localFile.length();
           setState(() {
-            _uploadProgress = fileSize > 0 ? offset / fileSize : 0.0;
+            _currentOperation =
+                '正在上传: ${platformFile.name} (${i + 1} / $totalCount)';
+            _uploadProgress = 0.0;
           });
+
+          try {
+            final remote = await _sftpClient.open(
+              remotePath,
+              mode: SftpFileOpenMode.create |
+                  SftpFileOpenMode.write |
+                  SftpFileOpenMode.truncate,
+            );
+            _currentUploader = remote;
+
+            int offset = 0;
+            final stream = localFile.openRead();
+            await for (final chunk in stream) {
+              if (!await _checkConnection()) break;
+              if (_cancelOperation) break;
+
+              await remote.writeBytes(chunk, offset: offset);
+              offset += chunk.length;
+
+              if (mounted) {
+                setState(() {
+                  _uploadProgress = fileSize > 0 ? offset / fileSize : 0.0;
+                });
+              }
+            }
+
+            await remote.close();
+            _currentUploader = null;
+            successCount++;
+          } catch (e) {
+            debugPrint('上传文件 ${platformFile.name} 失败: $e');
+            try {
+              await _currentUploader?.close();
+            } catch (_) {}
+            _currentUploader = null;
+          }
         }
-      }
 
-      try {
-        await remote.close();
-      } catch (e) {}
-      _currentUploader = null;
-      if (!_cancelOperation) successCount++;
+        if (mounted) {
+          try {
+            Navigator.of(context).pop();
+          } catch (_) {}
 
-      if (mounted) Navigator.of(context).pop();
-      if (!_cancelOperation && mounted) {
-        String message = '上传完成: $successCount / $totalCount 个文件';
-        if (skippedCount > 0) message += ' (跳过 $skippedCount 个文件)';
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(message)));
-        await _loadDirectory(_currentPath);
+          if (!_cancelOperation) {
+            String message = '上传完成: $successCount / $totalCount 个文件';
+            if (skippedCount > 0) message += ' (跳过 $skippedCount 个文件)';
+
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(message),
+                duration: const Duration(seconds: 3),
+              ),
+            );
+
+            await _loadDirectory(_currentPath);
+          }
+        }
+      } else {
+        const XTypeGroup typeGroup =
+            XTypeGroup(label: 'files', extensions: <String>[]);
+        final XFile? file =
+            await openFile(acceptedTypeGroups: <XTypeGroup>[typeGroup]);
+
+        if (file == null) return;
+
+        _showProgressDialog('上传文件', showCancel: true);
+        _cancelOperation = false;
+
+        final localFile = File(file.path);
+        final remotePath = _joinPath(_currentPath, file.name);
+
+        bool fileExists = false;
+        try {
+          await _sftpClient.stat(remotePath);
+          fileExists = true;
+        } catch (e) {
+          fileExists = false;
+        }
+
+        if (fileExists) {
+          if (mounted) {
+            try {
+              Navigator.of(context).pop();
+            } catch (_) {}
+
+            final shouldOverwrite = await showDialog<bool>(
+              context: context,
+              barrierDismissible: false,
+              builder: (context) => AlertDialog(
+                title: const Text('文件已存在'),
+                content: Text('文件 "${file.name}" 已存在，是否覆盖？'),
+                actions: [
+                  OutlinedButton(
+                    onPressed: () => Navigator.of(context).pop(false),
+                    child: const Text('跳过'),
+                  ),
+                  OutlinedButton(
+                    onPressed: () => Navigator.of(context).pop(true),
+                    child:
+                        const Text('覆盖', style: TextStyle(color: Colors.red)),
+                  ),
+                ],
+              ),
+            );
+
+            if (shouldOverwrite == false) {
+              return;
+            }
+          }
+          _showProgressDialog('上传文件', showCancel: true);
+        }
+
+        final fileSize = await localFile.length();
+        setState(() {
+          _currentOperation = '正在上传: ${file.name}';
+          _uploadProgress = 0.0;
+        });
+
+        try {
+          final remote = await _sftpClient.open(
+            remotePath,
+            mode: SftpFileOpenMode.create |
+                SftpFileOpenMode.write |
+                SftpFileOpenMode.truncate,
+          );
+          _currentUploader = remote;
+
+          int offset = 0;
+          final stream = localFile.openRead();
+          await for (final chunk in stream) {
+            if (!await _checkConnection()) break;
+            if (_cancelOperation) break;
+
+            await remote.writeBytes(chunk, offset: offset);
+            offset += chunk.length;
+
+            if (mounted) {
+              setState(() {
+                _uploadProgress = fileSize > 0 ? offset / fileSize : 0.0;
+              });
+            }
+          }
+
+          await remote.close();
+          _currentUploader = null;
+
+          if (mounted) {
+            try {
+              Navigator.of(context).pop();
+            } catch (_) {}
+
+            if (!_cancelOperation) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('上传完成: ${file.name}'),
+                  duration: const Duration(seconds: 3),
+                ),
+              );
+
+              await _loadDirectory(_currentPath);
+            }
+          }
+        } catch (e) {
+          debugPrint('上传文件 ${file.name} 失败: $e');
+          try {
+            await _currentUploader?.close();
+          } catch (_) {}
+          _currentUploader = null;
+
+          if (mounted) {
+            try {
+              Navigator.of(context).pop();
+            } catch (_) {}
+            _showErrorDialog('上传失败', e.toString());
+          }
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -864,6 +1145,7 @@ class _SftpPageState extends State<SftpPage> {
       _currentUploader = null;
       _uploadProgress = 0;
       _currentOperation = '';
+      _cancelOperation = false;
     }
   }
 
@@ -935,60 +1217,92 @@ class _SftpPageState extends State<SftpPage> {
   }
 
   Future<void> _downloadSelectedFiles() async {
-    if (_selectedFiles.isEmpty) {
-      return;
-    }
+    if (_selectedFiles.isEmpty) return;
     if (!await _checkConnection()) return;
 
-    final selectedFiles = Platform.isOhos && _selectedFiles.length > 1
-        ? [_selectedFiles.first]
-        : List<String>.from(_selectedFiles);
-
-    List<String> directories = [];
-    for (String filename in selectedFiles) {
+    List<String> filesToDownload = [];
+    for (String filename in _selectedFiles) {
       try {
         final fileItem = _fileList
             .firstWhere((item) => item.filename.toString() == filename);
-        if (fileItem.attr?.isDirectory == true) directories.add(filename);
+        if (fileItem.attr?.isDirectory != true) {
+          filesToDownload.add(filename);
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('暂不支持下载目录: $filename'),
+                duration: const Duration(seconds: 2),
+              ),
+            );
+          }
+        }
       } catch (e) {
         debugPrint('找不到文件: $filename');
       }
     }
 
-    if (directories.isNotEmpty) {
+    if (filesToDownload.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('暂不支持下载目录'),
-          ),
+          const SnackBar(content: Text('没有有效的文件可以下载')),
         );
       }
       return;
     }
 
-    if (Platform.isOhos) {
-      await _downloadForOhos(selectedFiles);
+    if (Platform.operatingSystem == 'ohos') {
+      await _downloadForOhos(filesToDownload);
       return;
     }
 
-    String? saveDir = _appSettings.defaultDownloadPath?.isNotEmpty == true
-        ? _appSettings.defaultDownloadPath
-        : await _getDownloadDirectory();
+    if (Platform.isAndroid && !kIsWeb) {
+      bool hasPermission = await _requestStoragePermission();
+      if (!hasPermission) {
+        if (mounted) {
+          _showErrorDialog('权限被拒绝', '需要存储权限来保存文件');
+        }
+        return;
+      }
+    }
 
-    if (saveDir == null && Platform.isAndroid) {
-      saveDir = await _getAndroidDownloadDirectory();
+    String? saveDir = await _getDownloadDirectory();
+    if (saveDir == null || saveDir.isEmpty) {
+      if (mounted) {
+        _showErrorDialog('下载失败', '未选择保存目录');
+      }
+      return;
     }
 
     try {
-      final dir = Directory(saveDir!);
-      if (!await dir.exists()) await dir.create(recursive: true);
+      final dir = Directory(saveDir);
+      if (!await dir.exists()) {
+        await dir.create(recursive: true);
+      }
+
+      try {
+        final testFile = File('${dir.path}/.write_test');
+        await testFile.writeAsString('test', flush: true);
+        await testFile.delete();
+      } catch (e) {
+        debugPrint('测试写入失败: $e');
+        final externalDir = await getExternalStorageDirectory();
+        if (externalDir != null) {
+          saveDir = path.join(externalDir.path, 'Download');
+          final newDir = Directory(saveDir);
+          if (!await newDir.exists()) {
+            await newDir.create(recursive: true);
+          }
+        } else {
+          if (mounted) {
+            _showErrorDialog('目录不可用', '无法写入目录: $saveDir\n请确保授予了存储权限');
+          }
+          return;
+        }
+      }
     } catch (e) {
       if (mounted) {
-        if (saveDir == null || saveDir.isEmpty) {
-          debugPrint('没有可用的下载目录，下载操作已取消');
-        } else {
-          _showErrorDialog('下载失败', '无法创建目录: $e');
-        }
+        _showErrorDialog('目录不可用', '无法写入目录: $saveDir\n错误: $e');
       }
       return;
     }
@@ -997,35 +1311,89 @@ class _SftpPageState extends State<SftpPage> {
     _cancelOperation = false;
 
     int successCount = 0;
-    int total = selectedFiles.length;
+    int total = filesToDownload.length;
 
     for (int i = 0; i < total; i++) {
-      if (!await _checkConnection()) break;
       if (_cancelOperation) break;
+      if (!await _checkConnection()) break;
 
-      final filename = selectedFiles.elementAt(i);
+      final filename = filesToDownload[i];
       final remotePath = _joinPath(_currentPath, filename);
       final safeFilename = _getSafeFileName(filename);
-      final localFilePath = '$saveDir/$safeFilename';
+      final localFilePath = path.join(saveDir, safeFilename);
 
       setState(() {
         _currentOperation = '正在下载: $filename (${i + 1} / $total)';
         _downloadProgress = 0.0;
       });
 
-      await _downloadSingleFile(remotePath, localFilePath, filename, i, total);
-      if (!_cancelOperation && await File(localFilePath).exists())
+      try {
+        final stat = await _sftpClient.stat(remotePath);
+        final int fileSize = (stat.size ?? 0).toInt();
+
+        if (fileSize <= 0) {
+          await File(localFilePath).writeAsBytes([]);
+          successCount++;
+          continue;
+        }
+
+        final localFile = File(localFilePath);
+        if (await localFile.exists()) {
+          if (mounted) {
+            final shouldOverwrite = await showDialog<bool>(
+              context: context,
+              barrierDismissible: false,
+              builder: (context) {
+                return AlertDialog(
+                  title: const Text('文件已存在'),
+                  content: Text('文件 "$safeFilename" 已存在，是否覆盖？'),
+                  actions: [
+                    OutlinedButton(
+                      onPressed: () => Navigator.of(context).pop(false),
+                      child: const Text('跳过'),
+                    ),
+                    OutlinedButton(
+                      onPressed: () => Navigator.of(context).pop(true),
+                      child: const Text('覆盖'),
+                    ),
+                  ],
+                );
+              },
+            );
+
+            if (shouldOverwrite == false) {
+              continue;
+            }
+          }
+        }
+
+        await _downloadSingleFile(
+            remotePath, localFilePath, filename, fileSize);
         successCount++;
+      } catch (e) {
+        debugPrint('下载文件 $filename 失败: $e');
+        try {
+          final incompleteFile = File(localFilePath);
+          if (await incompleteFile.exists()) {
+            await incompleteFile.delete();
+          }
+        } catch (_) {}
+      }
     }
 
     if (mounted) {
       try {
         Navigator.of(context).pop();
       } catch (_) {}
+
       if (!_cancelOperation) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('下载完成: $successCount / $total 个文件')),
-        );
+        if (successCount > 0) {
+          _showDownloadCompleteDialog(saveDir, successCount, total);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('下载失败')),
+          );
+        }
         _clearSelectionAndExitMultiSelect();
       }
     }
@@ -1033,12 +1401,13 @@ class _SftpPageState extends State<SftpPage> {
     _downloadProgress = 0;
     _currentDownloadFile = null;
     _currentOperation = '';
+    _cancelOperation = false;
   }
 
-  Future<void> _downloadForOhos(List<String> selectedFiles) async {
-    if (selectedFiles.isEmpty) return;
+  Future<void> _downloadForOhos(List<String> filesToDownload) async {
+    if (filesToDownload.isEmpty) return;
 
-    final filename = selectedFiles.first;
+    final filename = filesToDownload.first;
     final remotePath = _joinPath(_currentPath, filename);
 
     try {
@@ -1050,6 +1419,7 @@ class _SftpPageState extends State<SftpPage> {
         _downloadProgress = 0.0;
       });
 
+      // 将文件下载到内存
       final fileBytes = await _downloadToMemory(remotePath);
 
       if (_cancelOperation) {
@@ -1069,60 +1439,47 @@ class _SftpPageState extends State<SftpPage> {
         return;
       }
 
-      // 第一步：先将文件保存到应用目录，同名文件直接覆盖
       final appDocDir = await getApplicationDocumentsDirectory();
       final downloadDir = Directory('${appDocDir.path}/Downloads');
       if (!await downloadDir.exists()) {
         await downloadDir.create(recursive: true);
       }
 
-      // 修改点1：直接使用原文件名，不再生成唯一文件名
-      final String basename = path.basename(filename); // 确保只获取文件名部分
+      final String basename = path.basename(filename);
       final tempSavePath = '${downloadDir.path}/$basename';
       final tempFile = File(tempSavePath);
 
-      // 直接覆盖写入文件
       await tempFile.writeAsBytes(fileBytes);
 
-      // 关闭进度对话框
       if (mounted && _isProgressDialogOpen) {
         Navigator.of(context, rootNavigator: true).pop();
         _isProgressDialogOpen = false;
       }
 
-      // 第二步：调用file_picker的saveFile方法，让用户选择最终保存位置
       final savedPath = await FilePicker.platform.saveFile(
         dialogTitle: '保存文件',
-        fileName: basename, // 修改点2：使用basename而不是uniqueFilename
-        initialDirectory: tempSavePath,
+        fileName: basename,
         allowedExtensions: _getFileExtensions(basename),
+        initialDirectory: tempSavePath,
         bytes: fileBytes,
       );
 
       if (savedPath != null && savedPath.isNotEmpty) {
-        // 用户选择了保存位置
         if (savedPath != tempSavePath) {
-          // 如果用户选择的路径与临时路径不同，则将文件移动到用户选择的位置
           try {
             final savedFile = File(savedPath);
             await savedFile.writeAsBytes(fileBytes);
-            // 删除临时文件
             await tempFile.delete();
 
-            // 显示成功对话框
             _showDownloadSuccessDialog(basename, savedPath);
           } catch (e) {
-            // 如果移动失败，保留临时文件并显示临时文件位置
             debugPrint('保存到用户选择位置失败: $e');
             _showDownloadSuccessDialog(basename, tempSavePath);
           }
         } else {
-          // 用户选择保存到临时文件位置，直接显示成功
           _showDownloadSuccessDialog(basename, tempSavePath);
         }
       } else {
-        // 用户取消了保存对话框
-        // 询问用户是否保留临时文件
         final shouldKeep = await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
@@ -1131,13 +1488,13 @@ class _SftpPageState extends State<SftpPage> {
             actions: [
               OutlinedButton(
                 onPressed: () {
-                  Navigator.of(context).pop(false); // 不保留
+                  Navigator.of(context).pop(false);
                 },
                 child: const Text('删除'),
               ),
               OutlinedButton(
                 onPressed: () {
-                  Navigator.of(context).pop(true); // 保留
+                  Navigator.of(context).pop(true);
                 },
                 child: const Text('保留'),
               ),
@@ -1146,13 +1503,11 @@ class _SftpPageState extends State<SftpPage> {
         );
 
         if (shouldKeep == false) {
-          // 删除临时文件
           await tempFile.delete();
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('临时文件已删除')),
           );
         } else {
-          // 显示临时文件位置
           _showDownloadSuccessDialog(basename, tempSavePath);
         }
       }
@@ -1173,81 +1528,9 @@ class _SftpPageState extends State<SftpPage> {
     }
   }
 
-// 辅助方法：根据文件名获取文件扩展名列表
-  List<String> _getFileExtensions(String filename) {
-    final extIndex = filename.lastIndexOf('.');
-    if (extIndex != -1 && extIndex < filename.length - 1) {
-      final extension = filename.substring(extIndex + 1).toLowerCase();
-      return [extension];
-    }
-    return [];
-  }
-
-// 修改显示成功对话框的方法，添加复制路径功能
-  void _showDownloadSuccessDialog(String filename, String savePath) {
-    if (!mounted) return;
-
-    showDialog(
-      context: context,
-      barrierDismissible: true,
-      builder: (context) => AlertDialog(
-        title: const Text('下载完成'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('文件: $filename'),
-            const SizedBox(height: 8),
-            const Text('保存位置:'),
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.grey[100],
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: SelectableText(
-                savePath,
-                style: const TextStyle(
-                  fontSize: 12,
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              '您可尝试在文件管理器中访问此位置',
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          OutlinedButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('确定'),
-          ),
-          if (Platform.isOhos)
-            OutlinedButton(
-              onPressed: () {
-                // 复制路径到剪贴板
-                Clipboard.setData(ClipboardData(text: savePath));
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('路径已复制到剪贴板')),
-                );
-                Navigator.of(context).pop();
-              },
-              child: const Text('复制路径'),
-            ),
-        ],
-      ),
-    );
-  }
-
+  // 下载文件到内存
   Future<Uint8List> _downloadToMemory(String remotePath) async {
     dynamic remote;
-    // ignore: deprecated_export_use
     final bytesBuilder = BytesBuilder();
 
     try {
@@ -1294,86 +1577,125 @@ class _SftpPageState extends State<SftpPage> {
     }
   }
 
-  Future<String> _getUniqueFilename(
-      String dirPath, String originalFilename) async {
-    final dir = Directory(dirPath);
-    final files = await dir
-        .list()
-        .where((entity) => entity is File)
-        .map((entity) => (entity as File).path)
-        .toList();
+  List<String> _getFileExtensions(String filename) {
+    final extIndex = filename.lastIndexOf('.');
+    if (extIndex != -1 && extIndex < filename.length - 1) {
+      final extension = filename.substring(extIndex + 1).toLowerCase();
+      return [extension];
+    }
+    return [];
+  }
 
-    final nameWithoutExt = originalFilename.substring(
-      0,
-      originalFilename.lastIndexOf('.') != -1
-          ? originalFilename.lastIndexOf('.')
-          : originalFilename.length,
+  void _showDownloadSuccessDialog(String filename, String savePath) {
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) => AlertDialog(
+        title: const Text('下载完成'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('文件: $filename'),
+            const SizedBox(height: 8),
+            if (Platform.isAndroid) const Text('保存位置:'),
+            if (Platform.isAndroid) const SizedBox(height: 8),
+            if (Platform.isAndroid)
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.transparent,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: SelectableText(
+                  savePath,
+                  style: const TextStyle(
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            if (Platform.isAndroid) const SizedBox(height: 16),
+          ],
+        ),
+        actions: [
+          OutlinedButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('确定'),
+          ),
+          if (Platform.operatingSystem == 'ohos')
+            OutlinedButton(
+              onPressed: () {
+                Clipboard.setData(ClipboardData(text: savePath));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('路径已复制到剪贴板')),
+                );
+                Navigator.of(context).pop();
+              },
+              child: const Text('复制路径'),
+            ),
+        ],
+      ),
     );
-
-    final ext = originalFilename.lastIndexOf('.') != -1
-        ? originalFilename.substring(originalFilename.lastIndexOf('.'))
-        : '';
-
-    if (!files.any((path) => path.endsWith('/$originalFilename'))) {
-      return originalFilename;
-    }
-
-    int counter = 1;
-    String newFilename;
-    do {
-      newFilename = '$nameWithoutExt ($counter)$ext';
-      counter++;
-    } while (files.any((path) => path.endsWith('/$newFilename')));
-
-    return newFilename;
   }
 
-  Future<String?> _getDownloadDirectory() async {
-    // 如果是鸿蒙OS，返回null，使用专用下载逻辑
-    if (Platform.isOhos) {
-      return null;
-    }
+  Future<bool> _requestStoragePermission() async {
+    if (!Platform.isAndroid) return true;
 
-    // 其他平台使用原有逻辑
-    if (Platform.isWindows) {
-      final firstSelectedFile = _selectedFiles.first;
-      final String? result = (await getSaveLocation(
-        suggestedName:
-            _selectedFiles.length == 1 ? firstSelectedFile : 'download',
-      )) as String?;
-      return result?.substring(0, result.lastIndexOf(Platform.pathSeparator));
-    } else {
-      if (Platform.isOhos) {
-        return null;
-      } else {
-        return await getDirectoryPath();
+    try {
+      var status = await Permission.storage.status;
+
+      if (status.isGranted) {
+        return true;
+      } else if (status.isDenied) {
+        status = await Permission.storage.request();
+        return status.isGranted;
+      } else if (status.isPermanentlyDenied) {
+        if (mounted) {
+          final result = await showDialog<bool>(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('需要存储权限'),
+              content: const Text('下载文件需要存储权限。请在应用设置中授予权限。'),
+              actions: [
+                OutlinedButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: const Text('取消'),
+                ),
+                OutlinedButton(
+                  onPressed: () => Navigator.of(context).pop(true),
+                  child: const Text('去设置'),
+                ),
+              ],
+            ),
+          );
+
+          if (result == true) {
+            await openAppSettings();
+          }
+        }
+        return false;
       }
-    }
-  }
 
-  Future<String?> _getAndroidDownloadDirectory() async {
-    return _appSettings.defaultDownloadPath?.isNotEmpty == true
-        ? _appSettings.defaultDownloadPath
-        : await SettingsService.getPlatformDefaultDownloadPath();
+      return false;
+    } catch (e) {
+      debugPrint('请求存储权限失败: $e');
+      return false;
+    }
   }
 
   Future<void> _downloadSingleFile(String remotePath, String localFilePath,
-      String filename, int index, int total) async {
-    IOSink? sink;
+      String filename, int fileSize) async {
+    RandomAccessFile? localFile;
     dynamic remote;
 
     try {
-      final stat = await _sftpClient.stat(remotePath);
-      final int fileSize = (stat.size ?? 0).toInt();
-      if (fileSize <= 0) {
-        debugPrint('文件大小为0或无效: $filename');
-        return;
-      }
-
       remote = await _sftpClient.open(remotePath);
       _currentDownloadFile = remote;
-      final localFile = File(localFilePath);
-      sink = localFile.openWrite();
+
+      final file = File(localFilePath);
+      localFile = await file.open(mode: FileMode.write);
 
       num offset = 0;
       const int chunkSize = 32 * 1024;
@@ -1382,41 +1704,148 @@ class _SftpPageState extends State<SftpPage> {
         if (!await _checkConnection()) break;
 
         final bytesToRead =
-            fileSize - offset > chunkSize ? chunkSize : fileSize - offset;
-        final chunk =
-            await remote.readBytes(offset: offset, length: bytesToRead);
+            (fileSize - offset) > chunkSize ? chunkSize : (fileSize - offset);
+
+        final chunk = await remote.readBytes(
+          offset: offset,
+          length: bytesToRead,
+        );
+
         if (chunk.isEmpty) {
-          debugPrint('文件可能已经损坏: $filename');
+          debugPrint('下载完成或文件为空: $filename');
           break;
         }
-        sink.add(chunk);
+
+        await localFile.writeFrom(chunk, 0, chunk.length);
         offset += chunk.length;
+
         if (mounted) {
-          setState(() =>
-              _downloadProgress = fileSize > 0 ? (offset / fileSize) : 0.0);
+          setState(() {
+            _downloadProgress = fileSize > 0 ? offset / fileSize : 0.0;
+          });
         }
       }
 
-      await sink.flush();
-      await sink.close();
+      await localFile.flush();
+      await localFile.close();
       await remote.close();
       _currentDownloadFile = null;
+
+      debugPrint('文件下载完成: $filename -> $localFilePath');
     } catch (e) {
       debugPrint('下载文件 $filename 失败: $e');
+
       try {
-        await sink?.close();
+        await localFile?.close();
+        final tempFile = File(localFilePath);
+        if (await tempFile.exists()) {
+          await tempFile.delete();
+        }
+      } catch (cleanupError) {
+        debugPrint('清理失败文件时出错: $cleanupError');
+      }
+
+      rethrow;
+    } finally {
+      try {
+        await localFile?.close();
       } catch (_) {}
       try {
         await remote?.close();
       } catch (_) {}
       _currentDownloadFile = null;
-      try {
-        final incompleteFile = File(localFilePath);
-        if (await incompleteFile.exists()) await incompleteFile.delete();
-      } catch (deleteError) {
-        debugPrint('删除不完整的文件失败: $deleteError');
+    }
+  }
+
+  void _showDownloadCompleteDialog(
+      String saveDir, int successCount, int totalCount) {
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) => AlertDialog(
+        title: const Text('下载完成'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('成功下载: $successCount / $totalCount 个文件'),
+            const SizedBox(height: 16),
+            const Text('保存位置:'),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.transparent,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: SelectableText(
+                saveDir,
+                style: const TextStyle(fontSize: 12),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          OutlinedButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('确定'),
+          ),
+          OutlinedButton(
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: saveDir));
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('路径已复制到剪贴板')),
+              );
+              Navigator.of(context).pop();
+            },
+            child: const Text('复制路径'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<String?> _getDownloadDirectory() async {
+    try {
+      if (_appSettings.defaultDownloadPath?.isNotEmpty == true) {
+        final defaultDir = _appSettings.defaultDownloadPath!;
+        debugPrint('使用设置的目录: $defaultDir');
+        return defaultDir;
       }
-      rethrow;
+
+      if (Platform.isAndroid && !kIsWeb) {
+        try {
+          final downloadsDir = await getExternalStorageDirectory();
+          if (downloadsDir != null) {
+            final downloadPath = path.join(downloadsDir.path, 'Download');
+            debugPrint('使用 Downloads 目录: $downloadPath');
+            return downloadPath;
+          }
+        } catch (e) {
+          debugPrint('获取外部存储目录失败: $e');
+        }
+      }
+
+      String? selectedDir;
+      try {
+        selectedDir = await FilePicker.platform.getDirectoryPath(
+          dialogTitle: '选择下载保存位置',
+        );
+
+        if (selectedDir != null && selectedDir.isNotEmpty) {
+          debugPrint('用户选择的目录: $selectedDir');
+          return selectedDir;
+        }
+      } catch (e) {
+        debugPrint('选择目录失败: $e');
+      }
+
+      return null;
+    } catch (e) {
+      debugPrint('获取下载目录失败: $e');
+      return null;
     }
   }
 
@@ -1767,7 +2196,6 @@ class _SftpPageState extends State<SftpPage> {
   }
 
   Future<void> _createDirectory() async {
-    // 在操作前检查连接状态
     if (!await _checkConnection()) return;
 
     final textController = TextEditingController();
@@ -1803,7 +2231,6 @@ class _SftpPageState extends State<SftpPage> {
   }
 
   Future<void> _createFile() async {
-    // 在操作前检查连接状态
     if (!await _checkConnection()) return;
 
     final textController = TextEditingController();
@@ -1839,7 +2266,6 @@ class _SftpPageState extends State<SftpPage> {
   }
 
   Future<void> _createDirectoryAction(String dirName) async {
-    // 在操作前检查连接状态
     if (!await _checkConnection()) return;
 
     try {
@@ -1856,13 +2282,11 @@ class _SftpPageState extends State<SftpPage> {
   }
 
   Future<void> _createFileAction(String fileName) async {
-    // 在操作前检查连接状态
     if (!await _checkConnection()) return;
 
     try {
       final newFilePath = _joinPath(_currentPath, fileName);
 
-      // 创建空文件
       final remote = await _sftpClient.open(
         newFilePath,
         mode: SftpFileOpenMode.create | SftpFileOpenMode.write,
@@ -1879,7 +2303,6 @@ class _SftpPageState extends State<SftpPage> {
     }
   }
 
-  // 编辑选中的文件
   Future<void> _editSelectedFile() async {
     if (_selectedFiles.length != 1) return;
 
@@ -1887,13 +2310,11 @@ class _SftpPageState extends State<SftpPage> {
 
     final filename = _selectedFiles.first;
 
-    // 检查是否是文件夹
     if (_isSelectedItemDirectory()) {
       _showErrorDialog('编辑失败', '不能编辑文件夹');
       return;
     }
 
-    // 检查是否是文本文件
     if (!_isTextFile(filename)) {
       _showErrorDialog('编辑失败', '只支持编辑文本文件');
       return;
@@ -1902,7 +2323,6 @@ class _SftpPageState extends State<SftpPage> {
     final remotePath = _joinPath(_currentPath, filename);
 
     try {
-      // 下载文件内容
       _showProgressDialog('下载文件', showCancel: false);
 
       final remote = await _sftpClient.open(remotePath);
@@ -1917,7 +2337,6 @@ class _SftpPageState extends State<SftpPage> {
       if (mounted) {
         Navigator.of(context).pop();
 
-        // 打开全屏编辑页面
         await Navigator.of(context).push(
           MaterialPageRoute(
             builder: (context) => FileEditorPage(
@@ -1930,7 +2349,6 @@ class _SftpPageState extends State<SftpPage> {
           ),
         );
 
-        // 编辑完成后刷新文件列表
         await _loadDirectory(_currentPath);
         _clearSelectionAndExitMultiSelect();
       }
@@ -1944,7 +2362,6 @@ class _SftpPageState extends State<SftpPage> {
     }
   }
 
-  // 保存文件内容（修改为接受Uint8List）
   Future<void> _saveFile(
       String remotePath, Uint8List data, String filename) async {
     if (!await _checkConnection()) return;
@@ -2019,11 +2436,9 @@ class _SftpPageState extends State<SftpPage> {
     }
   }
 
-  // 修改为支持批量剪切
   Future<void> _cutSelected() async {
     if (_selectedFiles.isEmpty) return;
 
-    // 在操作前检查连接状态
     if (!await _checkConnection()) return;
 
     final newClipboardItems = <ClipboardItem>[];
@@ -2117,11 +2532,9 @@ class _SftpPageState extends State<SftpPage> {
     });
   }
 
-  // 修改为支持批量粘贴，添加权限检查
   Future<void> _pasteFile() async {
     if (_clipboardItems.isEmpty) return;
 
-    // 在操作前检查连接状态
     if (!await _checkConnection()) return;
 
     _showProgressDialog('粘贴文件', showCancel: true);
@@ -2143,11 +2556,9 @@ class _SftpPageState extends State<SftpPage> {
 
       try {
         if (_clipboardIsCut) {
-          // 剪切操作：移动文件/目录
           await _sftpClient.rename(item.path, newPath);
           successCount++;
         } else {
-          // 复制操作：使用SSH命令复制
           final cmd = item.isDirectory
               ? 'cp -r "${_escapeShellArgument(item.path)}" "${_escapeShellArgument(newPath)}"'
               : 'cp "${_escapeShellArgument(item.path)}" "${_escapeShellArgument(newPath)}"';
@@ -2174,7 +2585,6 @@ class _SftpPageState extends State<SftpPage> {
         SnackBar(content: Text('粘贴完成: $successCount / $totalCount 个项目')),
       );
 
-      // 如果是剪切操作，清空剪贴板
       if (_clipboardIsCut) {
         setState(() {
           _clipboardItems.clear();
@@ -2278,7 +2688,6 @@ class _SftpPageState extends State<SftpPage> {
 
           Future.delayed(const Duration(seconds: 3), () {});
         } else {
-          // 允许退出
           if (mounted) {
             Navigator.of(context).pop();
           }
@@ -2290,7 +2699,7 @@ class _SftpPageState extends State<SftpPage> {
           backgroundColor: _getAppBarColor(),
           foregroundColor: Colors.white,
           titleSpacing: 0,
-          automaticallyImplyLeading: false, // 完全禁用默认的返回按钮
+          automaticallyImplyLeading: false,
           leading: _ismobile
               ? null
               : IconButton(
@@ -2301,7 +2710,7 @@ class _SftpPageState extends State<SftpPage> {
           title: Container(
             width: double.infinity,
             child: Padding(
-              padding: EdgeInsets.only(left: _ismobile ? 18.0 : 0), // 添加左边距
+              padding: EdgeInsets.only(left: _ismobile ? 18.0 : 0),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -2395,15 +2804,17 @@ class _SftpPageState extends State<SftpPage> {
                   : _buildSingleRowToolbar(iconColor, disabledIconColor,
                       hasSelection, singleSelection, isWideScreen),
             ),
-            if (Platform.isOhos && _selectedFiles.length > 1)
+            // 鸿蒙OS下载限制提示
+            if (Platform.operatingSystem == 'ohos' && _selectedFiles.length > 1)
               Container(
                 padding:
                     const EdgeInsets.symmetric(vertical: 4, horizontal: 16),
                 child: Row(
                   children: [
+                    const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        '鸿蒙OS仅支持单个文件下载,将只下载第一个文件',
+                        '鸿蒙OS仅支持单个文件下载，将只下载第一个文件',
                         style: TextStyle(
                           fontSize: 12,
                         ),

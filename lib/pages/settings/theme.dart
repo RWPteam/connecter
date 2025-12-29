@@ -87,15 +87,6 @@ class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
       await widget.settingsService.saveSettings(newSettings);
       widget.onSettingsChanged();
       MyApp.of(context)?.loadSettings();
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('设置已保存'),
-            duration: Duration(seconds: 2),
-          ),
-        );
-      }
     } catch (e) {
       if (mounted) {
         showDialog(
@@ -287,112 +278,265 @@ class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final isLandscape =
+        MediaQuery.of(context).orientation == Orientation.landscape;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('主题设置'),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              child: Column(
-                children: [
-                  const SizedBox(height: 16),
-                  // 主题风格设置
-                  Container(
-                    margin: const EdgeInsets.symmetric(
-                        vertical: 6.0, horizontal: 16.0),
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                        color: Colors.grey,
-                        width: 1.0,
-                      ),
-                      borderRadius: BorderRadius.circular(12.0),
-                      color: Colors.transparent,
-                    ),
-                    child: ListTile(
-                      title: Text(
-                        '主题风格',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
+          : LayoutBuilder(
+              builder: (context, constraints) {
+                // 横屏布局
+                if (isLandscape) {
+                  return Row(
+                    children: [
+                      Container(
+                        width: constraints.maxWidth * 1 / 3,
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const SizedBox(height: 16),
+                            const Padding(
+                              padding: EdgeInsets.only(bottom: 16.0),
+                              child: Text(
+                                '主题风格',
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  border: Border.all(
+                                    color: Colors.grey,
+                                    width: 1.0,
+                                  ),
+                                  borderRadius: BorderRadius.circular(12.0),
+                                ),
+                                child: ListView.builder(
+                                  itemCount: _themeModes.length,
+                                  itemBuilder: (context, index) {
+                                    final mode = _themeModes[index];
+                                    return ListTile(
+                                      title: Text(
+                                        _themeModeMap[mode] ?? mode,
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                      trailing: _themeMode == mode
+                                          ? Icon(
+                                              Icons.check_circle,
+                                              color: Theme.of(context)
+                                                  .primaryColor,
+                                            )
+                                          : null,
+                                      onTap: () async {
+                                        setState(() {
+                                          _themeMode = mode;
+                                        });
+                                        await _saveSettings();
+                                      },
+                                      contentPadding:
+                                          const EdgeInsets.symmetric(
+                                        horizontal: 16.0,
+                                        vertical: 12.0,
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      subtitle: Text(
-                        _themeModeMap[_themeMode] ?? _themeMode,
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey.shade600,
-                        ),
-                      ),
-                      trailing: const Icon(
-                        Icons.arrow_forward_ios,
-                        size: 16,
-                        color: Colors.grey,
-                      ),
-                      onTap: _showThemeModeDialog,
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16.0,
-                        vertical: 16.0,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12.0),
-                      ),
-                    ),
-                  ),
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                    child: Text(
-                      '页面主题',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                  GridView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 3,
-                      childAspectRatio: 1,
-                      crossAxisSpacing: 8,
-                      mainAxisSpacing: 8,
-                    ),
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemCount: _pageThemes.length,
-                    itemBuilder: (context, index) {
-                      final theme = _pageThemes[index];
-                      final isSelected = _pageTheme == theme;
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const SizedBox(height: 16),
+                              const Padding(
+                                padding: EdgeInsets.only(bottom: 16.0),
+                                child: Text(
+                                  '页面主题',
+                                  style: TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                              Expanded(
+                                child: GridView.builder(
+                                  gridDelegate:
+                                      SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: 3,
+                                    childAspectRatio: 1.2,
+                                    crossAxisSpacing: 16,
+                                    mainAxisSpacing: 16,
+                                  ),
+                                  itemCount: _pageThemes.length,
+                                  itemBuilder: (context, index) {
+                                    final theme = _pageThemes[index];
+                                    final isSelected = _pageTheme == theme;
 
-                      return GestureDetector(
-                        onTap: () async {
-                          setState(() {
-                            _pageTheme = theme;
-                          });
-                          await _saveSettings();
-                        },
-                        child: Container(
+                                    return GestureDetector(
+                                      onTap: () async {
+                                        setState(() {
+                                          _pageTheme = theme;
+                                        });
+                                        await _saveSettings();
+                                      },
+                                      child: Container(
+                                        decoration: BoxDecoration(
+                                          borderRadius:
+                                              BorderRadius.circular(12.0),
+                                          border: Border.all(
+                                            color: isSelected
+                                                ? Theme.of(context).primaryColor
+                                                : Colors.grey,
+                                            width: isSelected ? 2.0 : 1.0,
+                                          ),
+                                          color: isSelected
+                                              ? Theme.of(context)
+                                                  .colorScheme
+                                                  .onInverseSurface
+                                              : Colors.transparent,
+                                        ),
+                                        child: Column(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            _buildColorPalette(theme),
+                                            const SizedBox(height: 8),
+                                          ],
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                } else {
+                  return SingleChildScrollView(
+                    child: Column(
+                      children: [
+                        const SizedBox(height: 16),
+                        // 主题风格设置
+                        Container(
+                          margin: const EdgeInsets.symmetric(
+                              vertical: 6.0, horizontal: 16.0),
                           decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(12.0),
                             border: Border.all(
                               color: Colors.grey,
                               width: 1.0,
                             ),
-                            color: isSelected
-                                ? Theme.of(context).colorScheme.onInverseSurface
-                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(12.0),
+                            color: Colors.transparent,
                           ),
-                          child: Center(
-                            child: _buildColorPalette(theme),
+                          child: ListTile(
+                            title: Text(
+                              '主题风格',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            subtitle: Text(
+                              _themeModeMap[_themeMode] ?? _themeMode,
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
+                            trailing: const Icon(
+                              Icons.arrow_forward_ios,
+                              size: 16,
+                              color: Colors.grey,
+                            ),
+                            onTap: _showThemeModeDialog,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16.0,
+                              vertical: 16.0,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12.0),
+                            ),
                           ),
                         ),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 20),
-                ],
-              ),
+                        const Padding(
+                          padding: EdgeInsets.symmetric(
+                              horizontal: 20, vertical: 16),
+                          child: Text(
+                            '页面主题',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        GridView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          gridDelegate:
+                              const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 3,
+                            childAspectRatio: 1,
+                            crossAxisSpacing: 8,
+                            mainAxisSpacing: 8,
+                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          itemCount: _pageThemes.length,
+                          itemBuilder: (context, index) {
+                            final theme = _pageThemes[index];
+                            final isSelected = _pageTheme == theme;
+
+                            return GestureDetector(
+                              onTap: () async {
+                                setState(() {
+                                  _pageTheme = theme;
+                                });
+                                await _saveSettings();
+                              },
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(12.0),
+                                  border: Border.all(
+                                    color: Colors.grey,
+                                    width: 1.0,
+                                  ),
+                                  color: isSelected
+                                      ? Theme.of(context)
+                                          .colorScheme
+                                          .onInverseSurface
+                                      : Colors.transparent,
+                                ),
+                                child: Center(
+                                  child: _buildColorPalette(theme),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 20),
+                      ],
+                    ),
+                  );
+                }
+              },
             ),
     );
   }

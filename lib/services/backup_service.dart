@@ -6,7 +6,7 @@ import 'package:encrypt/encrypt.dart' as encrypt_package;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:file_selector/file_selector.dart';
+import 'package:file_picker_ohos/file_picker_ohos.dart';
 import '../models/backup_data_model.dart';
 import '../services/storage_service.dart';
 import '../services/setting_service.dart';
@@ -50,84 +50,135 @@ class BackupService {
     );
   }
 
-  // 修改后的备份方法：在安卓上选择目录，在桌面平台选择文件
   Future<String> backupData(String password) async {
     try {
-      // 收集所有数据
       final backupData = await _collectBackupData();
       final jsonString = jsonEncode(backupData.toJson());
 
-      // 加密数据
       final key = _generateKey(password);
       final iv = _generateIV(password);
       final encrypter = encrypt_package.Encrypter(
           encrypt_package.AES(key, mode: encrypt_package.AESMode.cbc));
       final encrypted = encrypter.encrypt(jsonString, iv: iv);
 
-      // 生成文件名
       final dateStr =
           DateTime.now().toString().replaceAll(RegExp(r'[:\.]'), '-');
-      final fileName = 'ConnSSH-$dateStr.cntinfo';
+      final fileName = 'backup-$dateStr.cntinfo';
 
       String savePath;
 
       if (Platform.isAndroid) {
-        // Android平台：让用户选择目录
         final status = await Permission.storage.request();
         if (!status.isGranted) {
           throw Exception('需要存储权限才能保存文件');
         }
 
-        // 获取默认的下载目录
         final defaultDir = await _getPlatformDefaultDownloadPath();
 
-        // 让用户选择目录
-        final selectedDirectory = await getDirectoryPath(
+        String? result = await FilePicker.platform.saveFile(
+          dialogTitle: '保存备份文件',
+          fileName: fileName,
+          allowedExtensions: ['cntinfo'],
+          type: FileType.custom,
           initialDirectory: defaultDir,
         );
 
-        if (selectedDirectory == null) {
-          throw Exception('用户取消选择目录');
+        if (result == null) {
+          throw Exception('用户取消选择保存位置');
         }
 
-        // 在选择的目录下创建文件
-        final file = File('$selectedDirectory/$fileName');
+        if (!result.toLowerCase().endsWith('.cntinfo')) {
+          result = '$result.cntinfo';
+        }
+
+        final file = File(result);
         await file.writeAsBytes(encrypted.bytes);
         savePath = file.path;
+      } else if (Platform.operatingSystem == 'ohos') {
+        // 鸿蒙OS备份逻辑
+        final appDocDir = await getApplicationDocumentsDirectory();
+        final backupDir = Directory('${appDocDir.path}/Backups');
+        if (!await backupDir.exists()) {
+          await backupDir.create(recursive: true);
+        }
+
+        final tempSavePath = '${backupDir.path}/$fileName';
+        final tempFile = File(tempSavePath);
+        await tempFile.writeAsBytes(encrypted.bytes);
+
+        // 使用FilePicker让用户选择保存位置
+        final savedPath = await FilePicker.platform.saveFile(
+          dialogTitle: '保存备份文件',
+          fileName: fileName,
+          allowedExtensions: ['cntinfo'],
+          initialDirectory: tempSavePath,
+          bytes: encrypted.bytes,
+        );
+
+        if (savedPath != null && savedPath.isNotEmpty) {
+          if (savedPath != tempSavePath) {
+            try {
+              final savedFile = File(savedPath);
+              await savedFile.writeAsBytes(encrypted.bytes);
+              await tempFile.delete();
+              savePath = savedPath;
+            } catch (e) {
+              debugPrint('保存到用户选择位置失败: $e');
+              savePath = tempSavePath;
+            }
+          } else {
+            savePath = tempSavePath;
+          }
+        } else {
+          // 用户取消保存，询问是否保留临时文件
+          final shouldKeep = await _showKeepTempFileDialog();
+          if (shouldKeep) {
+            savePath = tempSavePath;
+          } else {
+            await tempFile.delete();
+            throw Exception('用户取消保存');
+          }
+        }
       } else if (Platform.isIOS) {
-        // iOS平台：使用getSaveLocation，因为iOS对文件系统访问有限制
-        final suggestedPath = await _getPlatformDefaultDownloadPath();
-        final result = await getSaveLocation(
-          suggestedName: fileName,
-          initialDirectory: suggestedPath,
+        final appDocDir = await getApplicationDocumentsDirectory();
+        String? result = await FilePicker.platform.saveFile(
+          dialogTitle: '保存备份文件',
+          fileName: fileName,
+          allowedExtensions: ['cntinfo'],
+          type: FileType.custom,
+          initialDirectory: appDocDir.path,
         );
 
         if (result == null) {
           throw Exception('用户取消选择保存位置');
         }
 
-        final file = File(result.path);
-        await file.writeAsBytes(encrypted.bytes);
-        savePath = result.path;
-      } else if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
-        // 桌面平台：使用getSaveLocation选择文件
-        final result = await getSaveLocation(
-          suggestedName: fileName,
-        );
-
-        if (result == null) {
-          throw Exception('用户取消选择保存位置');
+        if (!result.toLowerCase().endsWith('.cntinfo')) {
+          result = '$result.cntinfo';
         }
 
-        // 确保文件扩展名正确
-        String filePath = result.path;
-        if (!filePath.toLowerCase().endsWith('.cntinfo')) {
-          filePath = '$filePath.cntinfo';
-        }
-
-        final file = File(filePath);
+        final file = File(result);
         await file.writeAsBytes(encrypted.bytes);
         savePath = file.path;
+      } else if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+        String? result = await FilePicker.platform.saveFile(
+          dialogTitle: '保存备份文件',
+          fileName: fileName,
+          allowedExtensions: ['cntinfo'],
+          type: FileType.custom,
+        );
+
+        if (result == null) {
+          throw Exception('用户取消选择保存位置');
+        }
+
+        if (!result.toLowerCase().endsWith('.cntinfo')) {
+          result = '$result.cntinfo';
+        }
+
+        final file = File(result);
+        await file.writeAsBytes(encrypted.bytes);
+        savePath = result;
       } else {
         throw Exception('不支持的平台');
       }
@@ -139,7 +190,10 @@ class BackupService {
     }
   }
 
-  // 获取平台默认的下载目录路径
+  Future<bool> _showKeepTempFileDialog() async {
+    return false;
+  }
+
   static Future<String?> _getPlatformDefaultDownloadPath() async {
     if (Platform.isAndroid) {
       try {
@@ -155,7 +209,6 @@ class BackupService {
         debugPrint('获取Android下载目录失败: $e');
       }
 
-      // 备用方案：使用应用文档目录
       try {
         final appDocDir = await getApplicationDocumentsDirectory();
         return appDocDir.path;
@@ -170,7 +223,6 @@ class BackupService {
         debugPrint('获取iOS文档目录失败: $e');
       }
     } else if (Platform.isWindows) {
-      // Windows: 使用下载目录
       final downloadsPath = Platform.environment['USERPROFILE'];
       if (downloadsPath != null) {
         final downloadDir = Directory('$downloadsPath\\Downloads');
@@ -178,8 +230,7 @@ class BackupService {
           return downloadDir.path;
         }
       }
-    } else if (Platform.isLinux || Platform.isMacOS) {
-      // Linux/macOS: 使用用户目录下的Downloads
+    } else if (Platform.isMacOS) {
       final homePath = Platform.environment['HOME'];
       if (homePath != null) {
         final downloadDir = Directory('$homePath/Downloads');
@@ -192,10 +243,29 @@ class BackupService {
     return null;
   }
 
-  // 恢复数据方法保持不变
   Future<BackupData> restoreData(String filePath, String password) async {
     try {
       Uint8List encryptedBytes;
+
+      if (Platform.operatingSystem == 'ohos' && filePath.isEmpty) {
+        final result = await FilePicker.platform.pickFiles(
+          type: FileType.custom,
+          allowedExtensions: ['cntinfo'],
+          dialogTitle: '选择备份文件',
+          allowMultiple: false,
+        );
+
+        if (result == null || result.files.isEmpty) {
+          throw Exception('请选择备份文件');
+        }
+
+        final platformFile = result.files.first;
+        if (platformFile.path == null || platformFile.path!.isEmpty) {
+          throw Exception('无法读取文件路径');
+        }
+
+        filePath = platformFile.path!;
+      }
 
       // 读取文件
       final file = File(filePath);

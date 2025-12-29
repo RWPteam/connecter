@@ -61,8 +61,8 @@ class ToolbarCustomizationPage extends StatefulWidget {
 }
 
 class _ToolbarCustomizationPageState extends State<ToolbarCustomizationPage> {
-  List<int?>? _currentLayout; // 改为可空类型，移除 late 关键字
-  List<int>? _availableKeys; // 改为可空类型，移除 late 关键字
+  List<int?>? _currentLayout;
+  List<int>? _availableKeys;
   bool _isModified = false;
   bool _isLoading = true;
 
@@ -76,21 +76,17 @@ class _ToolbarCustomizationPageState extends State<ToolbarCustomizationPage> {
     try {
       final settings = await widget.settingsService.getSettings();
 
-      // 创建初始布局
       List<int?> currentLayout = List<int?>.filled(16, null);
       for (int i = 0; i < settings.toolbarLayout.length && i < 16; i++) {
         currentLayout[i] = settings.toolbarLayout[i];
       }
 
-      // 计算已使用的按键
       final usedKeys =
           currentLayout.where((key) => key != null).cast<int>().toSet();
 
-      // 生成可用按键列表
       List<int> availableKeys = List.generate(40, (index) => index + 1)
         ..removeWhere((key) => usedKeys.contains(key));
 
-      // 设置状态
       if (mounted) {
         setState(() {
           _currentLayout = currentLayout;
@@ -100,7 +96,6 @@ class _ToolbarCustomizationPageState extends State<ToolbarCustomizationPage> {
       }
     } catch (e) {
       debugPrint('加载设置失败: $e');
-      // 如果加载失败，设置默认值
       if (mounted) {
         setState(() {
           _currentLayout = List<int?>.filled(16, null);
@@ -196,19 +191,16 @@ class _ToolbarCustomizationPageState extends State<ToolbarCustomizationPage> {
     ];
 
     setState(() {
-      // 清空当前布局中的按键，放回可用按键列表
       for (final oldKey in _currentLayout!.whereType<int>()) {
         if (!_availableKeys!.contains(oldKey)) {
           _availableKeys!.add(oldKey);
         }
       }
 
-      // 设置默认布局
       for (int i = 0; i < _currentLayout!.length; i++) {
         _currentLayout![i] = i < defaultLayout.length ? defaultLayout[i] : null;
       }
 
-      // 从可用按键中移除默认布局中的按键
       for (final key in defaultLayout) {
         _availableKeys!.remove(key);
       }
@@ -223,7 +215,6 @@ class _ToolbarCustomizationPageState extends State<ToolbarCustomizationPage> {
       return;
     }
 
-    // 如果该位置已有按键，先移除
     final oldKey = _currentLayout![position];
     if (oldKey != null) {
       _availableKeys!.add(oldKey);
@@ -266,13 +257,13 @@ class _ToolbarCustomizationPageState extends State<ToolbarCustomizationPage> {
     });
   }
 
-  Widget _buildToolbarKey(int key) {
+  Widget _buildToolbarKey(int key, {double size = 60}) {
     final label = _keyMapping[key] ?? '?';
     final theme = Theme.of(context);
 
     return Container(
-      width: 60,
-      height: 60,
+      width: size,
+      height: size,
       decoration: BoxDecoration(
         color: Colors.transparent,
         borderRadius: BorderRadius.circular(8),
@@ -285,7 +276,7 @@ class _ToolbarCustomizationPageState extends State<ToolbarCustomizationPage> {
         child: Text(
           label,
           style: TextStyle(
-            fontSize: 16,
+            fontSize: size * 0.26, // 根据按钮大小调整字体大小
             fontWeight: FontWeight.bold,
             color: theme.textTheme.bodyLarge?.color ?? Colors.grey[700],
           ),
@@ -530,18 +521,34 @@ class _ToolbarCustomizationPageState extends State<ToolbarCustomizationPage> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final primaryColor = theme.primaryColor;
+  Widget _buildActionButtons() {
     final usedKeysCount =
         _currentLayout?.where((key) => key != null).length ?? 0;
     final isComplete = usedKeysCount == 16;
 
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: [
+        OutlinedButton(
+          onPressed: _resetToDefault,
+          child: const Text('恢复默认'),
+        ),
+        OutlinedButton(
+          onPressed: _isModified && isComplete ? _saveSettings : null,
+          child: const Text('保存布局'),
+        ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final primaryColor = theme.primaryColor;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('自定义快捷栏'),
-        actions: [],
       ),
       body: _isLoading
           ? Center(child: CircularProgressIndicator(color: primaryColor))
@@ -572,38 +579,444 @@ class _ToolbarCustomizationPageState extends State<ToolbarCustomizationPage> {
                     ],
                   ),
                 )
-              : Column(
-                  children: [
-                    Expanded(
-                      child: SingleChildScrollView(
-                        padding: const EdgeInsets.all(16),
+              : OrientationBuilder(
+                  builder: (context, orientation) {
+                    // 根据屏幕方向选择布局
+                    if (orientation == Orientation.landscape) {
+                      // 横屏布局：左右各占一半，保证8个一行
+                      return Padding(
+                        padding: const EdgeInsets.all(16.0),
                         child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            _buildToolbarLayout(),
-                            const SizedBox(height: 24),
-                            _buildAvailableKeys(),
-                            const SizedBox(height: 24),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                              children: [
-                                OutlinedButton(
-                                  onPressed: _resetToDefault,
-                                  child: const Text('恢复默认'),
-                                ),
-                                OutlinedButton(
-                                  onPressed: _isModified && isComplete
-                                      ? _saveSettings
-                                      : null,
-                                  child: const Text('保存布局'),
-                                ),
-                              ],
+                            Expanded(
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // 左边1/2：当前快捷栏布局
+                                  Expanded(
+                                    child: LayoutBuilder(
+                                      builder: (context, constraints) {
+                                        // 计算适合的按钮大小
+                                        final containerWidth =
+                                            constraints.maxWidth -
+                                                24; // 减去padding
+                                        final keySize =
+                                            (containerWidth - (7 * 8)) /
+                                                8; // 8列，7个间隔
+
+                                        return SingleChildScrollView(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Padding(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                        vertical: 8.0),
+                                                child: Text(
+                                                  '当前快捷栏布局',
+                                                  style: TextStyle(
+                                                    fontSize: 14,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: theme.textTheme
+                                                            .bodySmall?.color ??
+                                                        Colors.grey,
+                                                  ),
+                                                ),
+                                              ),
+                                              Container(
+                                                padding:
+                                                    const EdgeInsets.all(12),
+                                                decoration: BoxDecoration(
+                                                  color: theme.cardColor,
+                                                  borderRadius:
+                                                      BorderRadius.circular(12),
+                                                  border: Border.all(
+                                                      color: primaryColor,
+                                                      width: 2),
+                                                ),
+                                                child: GridView.builder(
+                                                  shrinkWrap: true,
+                                                  physics:
+                                                      const NeverScrollableScrollPhysics(),
+                                                  gridDelegate:
+                                                      SliverGridDelegateWithFixedCrossAxisCount(
+                                                    crossAxisCount: 8,
+                                                    crossAxisSpacing: 8,
+                                                    mainAxisSpacing: 8,
+                                                    childAspectRatio: 1,
+                                                  ),
+                                                  itemCount: 16,
+                                                  itemBuilder:
+                                                      (context, position) {
+                                                    final key = _currentLayout![
+                                                        position];
+
+                                                    return DragTarget<int>(
+                                                      builder: (context,
+                                                          candidateData,
+                                                          rejectedData) {
+                                                        return Container(
+                                                          width: keySize,
+                                                          height: keySize,
+                                                          decoration:
+                                                              BoxDecoration(
+                                                            color: candidateData
+                                                                    .isNotEmpty
+                                                                ? primaryColor
+                                                                    .withOpacity(
+                                                                        0.1)
+                                                                : Colors
+                                                                    .transparent,
+                                                            borderRadius:
+                                                                BorderRadius
+                                                                    .circular(
+                                                                        8),
+                                                            border: Border.all(
+                                                              color: candidateData
+                                                                      .isNotEmpty
+                                                                  ? primaryColor
+                                                                  : theme
+                                                                      .dividerColor,
+                                                              width: 2,
+                                                            ),
+                                                          ),
+                                                          child: key != null
+                                                              ? Draggable<int>(
+                                                                  data: key,
+                                                                  feedback:
+                                                                      Material(
+                                                                    elevation:
+                                                                        4,
+                                                                    borderRadius:
+                                                                        BorderRadius
+                                                                            .circular(8),
+                                                                    child:
+                                                                        Container(
+                                                                      width:
+                                                                          keySize,
+                                                                      height:
+                                                                          keySize,
+                                                                      decoration:
+                                                                          BoxDecoration(
+                                                                        color: theme
+                                                                            .scaffoldBackgroundColor,
+                                                                        borderRadius:
+                                                                            BorderRadius.circular(8),
+                                                                        border: Border.all(
+                                                                            color:
+                                                                                primaryColor,
+                                                                            width:
+                                                                                2),
+                                                                      ),
+                                                                      child:
+                                                                          Center(
+                                                                        child:
+                                                                            Text(
+                                                                          _keyMapping[key] ??
+                                                                              '?',
+                                                                          style:
+                                                                              TextStyle(
+                                                                            color:
+                                                                                primaryColor,
+                                                                            fontSize:
+                                                                                keySize * 0.26,
+                                                                            fontWeight:
+                                                                                FontWeight.bold,
+                                                                          ),
+                                                                        ),
+                                                                      ),
+                                                                    ),
+                                                                  ),
+                                                                  childWhenDragging:
+                                                                      Container(
+                                                                    width:
+                                                                        keySize,
+                                                                    height:
+                                                                        keySize,
+                                                                    decoration:
+                                                                        BoxDecoration(
+                                                                      color: theme
+                                                                          .disabledColor
+                                                                          .withOpacity(
+                                                                              0.5),
+                                                                      borderRadius:
+                                                                          BorderRadius.circular(
+                                                                              8),
+                                                                      border: Border.all(
+                                                                          color: theme
+                                                                              .dividerColor,
+                                                                          width:
+                                                                              1),
+                                                                    ),
+                                                                  ),
+                                                                  child: _buildToolbarKey(
+                                                                      key,
+                                                                      size:
+                                                                          keySize),
+                                                                )
+                                                              : Center(
+                                                                  child: Icon(
+                                                                    Icons
+                                                                        .add_circle_outline,
+                                                                    color: theme
+                                                                        .iconTheme
+                                                                        .color,
+                                                                    size:
+                                                                        keySize *
+                                                                            0.4,
+                                                                  ),
+                                                                ),
+                                                        );
+                                                      },
+                                                      onWillAcceptWithDetails:
+                                                          (data) => true,
+                                                      onAccept: (data) {
+                                                        if (data >= 1 &&
+                                                            data <= 40 &&
+                                                            _availableKeys !=
+                                                                null) {
+                                                          if (_availableKeys!
+                                                              .contains(data)) {
+                                                            _addKeyToLayout(
+                                                                data, position);
+                                                          } else {
+                                                            final sourcePosition =
+                                                                _currentLayout!
+                                                                    .indexWhere(
+                                                                        (k) =>
+                                                                            k ==
+                                                                            data);
+                                                            if (sourcePosition !=
+                                                                -1) {
+                                                              _swapKeys(
+                                                                  sourcePosition,
+                                                                  position);
+                                                            }
+                                                          }
+                                                        }
+                                                      },
+                                                    );
+                                                  },
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  // 右边1/2：可选按键
+                                  Expanded(
+                                    child: LayoutBuilder(
+                                      builder: (context, constraints) {
+                                        // 计算适合的按钮大小
+                                        final containerWidth =
+                                            constraints.maxWidth -
+                                                24; // 减去padding
+                                        final keySize =
+                                            (containerWidth - (7 * 8)) /
+                                                8; // 8列，7个间隔
+
+                                        return SingleChildScrollView(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Padding(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                        vertical: 8.0),
+                                                child: Text(
+                                                  '可选按键',
+                                                  style: TextStyle(
+                                                    fontSize: 14,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: theme.textTheme
+                                                            .bodySmall?.color ??
+                                                        Colors.grey,
+                                                  ),
+                                                ),
+                                              ),
+                                              DragTarget<int>(
+                                                builder: (context,
+                                                    candidateData,
+                                                    rejectedData) {
+                                                  return Container(
+                                                    padding:
+                                                        const EdgeInsets.all(
+                                                            12),
+                                                    decoration: BoxDecoration(
+                                                      color: candidateData
+                                                              .isNotEmpty
+                                                          ? theme
+                                                              .secondaryHeaderColor
+                                                              .withOpacity(0.1)
+                                                          : theme.cardColor,
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                              12),
+                                                      border: Border.all(
+                                                        color: candidateData
+                                                                .isNotEmpty
+                                                            ? theme
+                                                                .secondaryHeaderColor
+                                                            : primaryColor,
+                                                        width: 1,
+                                                      ),
+                                                    ),
+                                                    child: GridView.builder(
+                                                      shrinkWrap: true,
+                                                      physics:
+                                                          const NeverScrollableScrollPhysics(),
+                                                      gridDelegate:
+                                                          SliverGridDelegateWithFixedCrossAxisCount(
+                                                        crossAxisCount: 8,
+                                                        crossAxisSpacing: 8,
+                                                        mainAxisSpacing: 8,
+                                                        childAspectRatio: 1,
+                                                      ),
+                                                      itemCount: _availableKeys!
+                                                          .length,
+                                                      itemBuilder:
+                                                          (context, index) {
+                                                        final key =
+                                                            _availableKeys![
+                                                                index];
+                                                        return Draggable<int>(
+                                                          data: key,
+                                                          feedback: Material(
+                                                            elevation: 4,
+                                                            borderRadius:
+                                                                BorderRadius
+                                                                    .circular(
+                                                                        8),
+                                                            child: Container(
+                                                              width: keySize,
+                                                              height: keySize,
+                                                              decoration:
+                                                                  BoxDecoration(
+                                                                color: theme
+                                                                    .scaffoldBackgroundColor,
+                                                                borderRadius:
+                                                                    BorderRadius
+                                                                        .circular(
+                                                                            8),
+                                                                border: Border.all(
+                                                                    color:
+                                                                        primaryColor,
+                                                                    width: 2),
+                                                              ),
+                                                              child: Center(
+                                                                child: Text(
+                                                                  _keyMapping[
+                                                                          key] ??
+                                                                      '?',
+                                                                  style:
+                                                                      TextStyle(
+                                                                    color:
+                                                                        primaryColor,
+                                                                    fontSize:
+                                                                        keySize *
+                                                                            0.26,
+                                                                    fontWeight:
+                                                                        FontWeight
+                                                                            .bold,
+                                                                  ),
+                                                                ),
+                                                              ),
+                                                            ),
+                                                          ),
+                                                          childWhenDragging:
+                                                              Container(
+                                                            width: keySize,
+                                                            height: keySize,
+                                                            decoration:
+                                                                BoxDecoration(
+                                                              color: theme
+                                                                  .disabledColor
+                                                                  .withOpacity(
+                                                                      0.5),
+                                                              borderRadius:
+                                                                  BorderRadius
+                                                                      .circular(
+                                                                          8),
+                                                              border: Border.all(
+                                                                  color: theme
+                                                                      .dividerColor,
+                                                                  width: 1),
+                                                            ),
+                                                          ),
+                                                          child:
+                                                              _buildToolbarKey(
+                                                                  key,
+                                                                  size:
+                                                                      keySize),
+                                                        );
+                                                      },
+                                                    ),
+                                                  );
+                                                },
+                                                onWillAccept: (data) {
+                                                  return _availableKeys !=
+                                                          null &&
+                                                      !_availableKeys!
+                                                          .contains(data);
+                                                },
+                                                onAccept: (data) {
+                                                  if (_currentLayout != null) {
+                                                    final position =
+                                                        _currentLayout!
+                                                            .indexWhere((key) =>
+                                                                key == data);
+                                                    if (position != -1) {
+                                                      _removeKeyFromLayout(
+                                                          position);
+                                                    }
+                                                  }
+                                                },
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
+                            const SizedBox(height: 16),
+                            _buildActionButtons(),
                           ],
                         ),
-                      ),
-                    ),
-                  ],
+                      );
+                    } else {
+                      // 竖屏布局：保持原样
+                      return Column(
+                        children: [
+                          Expanded(
+                            child: SingleChildScrollView(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  _buildToolbarLayout(),
+                                  const SizedBox(height: 24),
+                                  _buildAvailableKeys(),
+                                ],
+                              ),
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                                vertical: 16.0, horizontal: 16.0),
+                            child: _buildActionButtons(),
+                          ),
+                        ],
+                      );
+                    }
+                  },
                 ),
     );
   }

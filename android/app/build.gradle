@@ -23,7 +23,7 @@ keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
 
 def flutterVersionCode = localProperties.getProperty("flutter.versionCode")
 if (flutterVersionCode == null) {
-    flutterVersionCode = "195"
+    flutterVersionCode = "213"
 }
 
 def flutterVersionName = "1.2.2"
