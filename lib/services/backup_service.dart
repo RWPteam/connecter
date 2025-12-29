@@ -1,11 +1,12 @@
+// backup_service.dart
 import 'dart:convert';
-import 'dart:typed_data';
-import 'package:flutter/foundation.dart';
-import 'package:encrypt/encrypt.dart' as encrypt_package; // 添加别名
-import 'package:file_picker/file_picker.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
+import 'package:encrypt/encrypt.dart' as encrypt_package;
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:file_selector/file_selector.dart';
 import '../models/backup_data_model.dart';
 import '../services/storage_service.dart';
 import '../services/setting_service.dart';
@@ -23,18 +24,14 @@ class BackupService {
 
   // 生成加密密钥
   encrypt_package.Key _generateKey(String password) {
-    // 使用完整路径
-    // 使用SHA-256哈希密码作为密钥，截取32字节用于AES-256
-    final hash = Sha256.convert(utf8.encode(password));
-    return encrypt_package.Key(hash); // 使用完整路径
+    final hash = crypto.sha256.convert(utf8.encode(password));
+    return encrypt_package.Key(Uint8List.fromList(hash.bytes));
   }
 
-  // 生成固定IV（为了确保相同的密码每次都能解密）
+  // 生成固定IV
   encrypt_package.IV _generateIV(String password) {
-    // 使用完整路径
-    // 使用密码的SHA-1哈希的前16字节作为固定IV
-    final hash = Sha1.convert(utf8.encode(password));
-    return encrypt_package.IV(hash.sublist(0, 16)); // 使用完整路径
+    final hash = crypto.sha1.convert(utf8.encode(password));
+    return encrypt_package.IV(Uint8List.fromList(hash.bytes.sublist(0, 16)));
   }
 
   Future<BackupData> _collectBackupData() async {
@@ -53,6 +50,7 @@ class BackupService {
     );
   }
 
+  // 修改后的备份方法：在安卓上选择目录，在桌面平台选择文件
   Future<String> backupData(String password) async {
     try {
       // 收集所有数据
@@ -62,60 +60,167 @@ class BackupService {
       // 加密数据
       final key = _generateKey(password);
       final iv = _generateIV(password);
-      final encrypter = encrypt_package.Encrypter(encrypt_package.AES(key,
-          mode: encrypt_package.AESMode.cbc)); // 使用完整路径
+      final encrypter = encrypt_package.Encrypter(
+          encrypt_package.AES(key, mode: encrypt_package.AESMode.cbc));
       final encrypted = encrypter.encrypt(jsonString, iv: iv);
 
       // 生成文件名
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final fileName = '$timestamp-backup.cntinfo';
+      final dateStr =
+          DateTime.now().toString().replaceAll(RegExp(r'[:\.]'), '-');
+      final fileName = 'ConnSSH-$dateStr.cntinfo';
 
-      // 保存文件
-      String? filePath;
-      if (Platform.isAndroid || Platform.isIOS) {
-        final directory = await getExternalStorageDirectory();
-        if (directory != null) {
-          filePath = '${directory.path}/$fileName';
-          final file = File(filePath);
-          await file.writeAsBytes(encrypted.bytes);
+      String savePath;
+
+      if (Platform.isAndroid) {
+        // Android平台：让用户选择目录
+        final status = await Permission.storage.request();
+        if (!status.isGranted) {
+          throw Exception('需要存储权限才能保存文件');
         }
-      } else if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
-        filePath = await FilePicker.platform.saveFile(
-          dialogTitle: '保存备份文件',
-          fileName: fileName,
-          type: FileType.custom,
-          allowedExtensions: ['cntinfo'],
+
+        // 获取默认的下载目录
+        final defaultDir = await _getPlatformDefaultDownloadPath();
+
+        // 让用户选择目录
+        final selectedDirectory = await getDirectoryPath(
+          initialDirectory: defaultDir,
         );
-        if (filePath != null) {
-          final file = File(filePath);
-          await file.writeAsBytes(encrypted.bytes);
+
+        if (selectedDirectory == null) {
+          throw Exception('用户取消选择目录');
         }
+
+        // 在选择的目录下创建文件
+        final file = File('$selectedDirectory/$fileName');
+        await file.writeAsBytes(encrypted.bytes);
+        savePath = file.path;
+      } else if (Platform.isIOS) {
+        // iOS平台：使用getSaveLocation，因为iOS对文件系统访问有限制
+        final suggestedPath = await _getPlatformDefaultDownloadPath();
+        final result = await getSaveLocation(
+          suggestedName: fileName,
+          initialDirectory: suggestedPath,
+        );
+
+        if (result == null) {
+          throw Exception('用户取消选择保存位置');
+        }
+
+        final file = File(result.path);
+        await file.writeAsBytes(encrypted.bytes);
+        savePath = result.path;
+      } else if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+        // 桌面平台：使用getSaveLocation选择文件
+        final result = await getSaveLocation(
+          suggestedName: fileName,
+        );
+
+        if (result == null) {
+          throw Exception('用户取消选择保存位置');
+        }
+
+        // 确保文件扩展名正确
+        String filePath = result.path;
+        if (!filePath.toLowerCase().endsWith('.cntinfo')) {
+          filePath = '$filePath.cntinfo';
+        }
+
+        final file = File(filePath);
+        await file.writeAsBytes(encrypted.bytes);
+        savePath = file.path;
+      } else {
+        throw Exception('不支持的平台');
       }
 
-      return filePath ?? '';
+      return savePath;
     } catch (e) {
-      throw Exception('备份失败: $e');
+      debugPrint('备份失败: $e');
+      rethrow;
     }
   }
 
+  // 获取平台默认的下载目录路径
+  static Future<String?> _getPlatformDefaultDownloadPath() async {
+    if (Platform.isAndroid) {
+      try {
+        final externalDir = await getExternalStorageDirectory();
+        if (externalDir != null) {
+          final downloadDir = Directory('${externalDir.path}/Download');
+          if (!await downloadDir.exists()) {
+            await downloadDir.create(recursive: true);
+          }
+          return downloadDir.path;
+        }
+      } catch (e) {
+        debugPrint('获取Android下载目录失败: $e');
+      }
+
+      // 备用方案：使用应用文档目录
+      try {
+        final appDocDir = await getApplicationDocumentsDirectory();
+        return appDocDir.path;
+      } catch (e) {
+        debugPrint('获取应用文档目录失败: $e');
+      }
+    } else if (Platform.isIOS) {
+      try {
+        final appDocDir = await getApplicationDocumentsDirectory();
+        return appDocDir.path;
+      } catch (e) {
+        debugPrint('获取iOS文档目录失败: $e');
+      }
+    } else if (Platform.isWindows) {
+      // Windows: 使用下载目录
+      final downloadsPath = Platform.environment['USERPROFILE'];
+      if (downloadsPath != null) {
+        final downloadDir = Directory('$downloadsPath\\Downloads');
+        if (await downloadDir.exists()) {
+          return downloadDir.path;
+        }
+      }
+    } else if (Platform.isLinux || Platform.isMacOS) {
+      // Linux/macOS: 使用用户目录下的Downloads
+      final homePath = Platform.environment['HOME'];
+      if (homePath != null) {
+        final downloadDir = Directory('$homePath/Downloads');
+        if (await downloadDir.exists()) {
+          return downloadDir.path;
+        }
+      }
+    }
+
+    return null;
+  }
+
+  // 恢复数据方法保持不变
   Future<BackupData> restoreData(String filePath, String password) async {
     try {
-      // 读取加密文件
+      Uint8List encryptedBytes;
+
+      // 读取文件
       final file = File(filePath);
-      final encryptedBytes = await file.readAsBytes();
+      if (!await file.exists()) {
+        throw Exception('备份文件不存在');
+      }
+
+      encryptedBytes = await file.readAsBytes();
 
       // 解密数据
       final key = _generateKey(password);
       final iv = _generateIV(password);
-      final encrypter = encrypt_package.Encrypter(encrypt_package.AES(key,
-          mode: encrypt_package.AESMode.cbc)); // 使用完整路径
-      final encrypted = encrypt_package.Encrypted(encryptedBytes); // 使用完整路径
+      final encrypter = encrypt_package.Encrypter(
+          encrypt_package.AES(key, mode: encrypt_package.AESMode.cbc));
+      final encrypted = encrypt_package.Encrypted(encryptedBytes);
       final decryptedString = encrypter.decrypt(encrypted, iv: iv);
 
       // 解析JSON
       final Map<String, dynamic> jsonData = jsonDecode(decryptedString);
       return BackupData.fromJson(jsonData);
     } catch (e) {
+      debugPrint('恢复失败: $e');
+      if (e.toString().contains('Bad state: Unknown element type')) {
+        throw Exception('密码错误或文件已损坏');
+      }
       throw Exception('恢复失败: $e\n可能是密码错误或文件已损坏');
     }
   }
@@ -147,23 +252,8 @@ class BackupService {
       );
       await prefs.setString('recent_connections', recentConnectionsJson);
     } catch (e) {
+      debugPrint('应用恢复数据失败: $e');
       throw Exception('应用恢复数据失败: $e');
     }
-  }
-}
-
-// SHA-256和SHA-1辅助类
-
-class Sha256 {
-  static Uint8List convert(List<int> bytes) {
-    final digest = crypto.sha256.convert(bytes);
-    return Uint8List.fromList(digest.bytes);
-  }
-}
-
-class Sha1 {
-  static Uint8List convert(List<int> bytes) {
-    final digest = crypto.sha1.convert(bytes);
-    return Uint8List.fromList(digest.bytes);
   }
 }

@@ -227,14 +227,12 @@ class _ReadCerInfoPageState extends State<ReadCerInfoPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('密钥和证书工具')),
+      appBar: AppBar(title: const Text('证书解析')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('证书解析', style: TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 16),
             if (!_isOhos) ...[
               _buildActionButton(
                 onPressed: _pickKeyFile,

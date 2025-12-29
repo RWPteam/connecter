@@ -1,6 +1,6 @@
 // global_settings_page.dart
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:connssh/main.dart';
 import '../../models/app_settings_model.dart';
 import '../../services/setting_service.dart';
@@ -210,25 +210,63 @@ class _GlobalSettingsPageState extends State<GlobalSettingsPage> {
                   OutlinedButton.icon(
                     onPressed: () async {
                       try {
-                        FilePickerResult? result =
-                            await FilePicker.platform.pickFiles(
-                          type: FileType.custom,
-                          allowedExtensions: ['cntinfo'],
-                          dialogTitle: '选择备份文件',
+                        // 使用 file_selector 选择文件
+                        const XTypeGroup typeGroup = XTypeGroup(
+                          label: 'ConnSSH Backup',
+                          extensions: ['cntinfo'],
+                        );
+                        final XFile? file = await openFile(
+                          acceptedTypeGroups: [typeGroup],
                         );
 
-                        if (result != null && result.files.isNotEmpty) {
+                        if (file != null) {
                           setState(() {
-                            selectedFilePath = result.files.single.path!;
+                            selectedFilePath = file.path;
                           });
+
+                          // 显示选择的文件名
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('已选择文件: ${file.name}'),
+                                duration: const Duration(seconds: 2),
+                              ),
+                            );
+                          }
                         }
                       } catch (e) {
                         debugPrint('选择文件失败: $e');
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('选择文件失败: $e'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        }
                       }
                     },
                     icon: const Icon(Icons.folder_open),
-                    label: Text(selectedFilePath ?? '选择备份文件'),
+                    label: Text(
+                      selectedFilePath != null
+                          ? selectedFilePath!.split('/').last
+                          : '选择备份文件',
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                    ),
                   ),
+                  if (selectedFilePath != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      '文件路径: ${selectedFilePath!.length > 50 ? '...${selectedFilePath!.substring(selectedFilePath!.length - 50)}' : selectedFilePath!}',
+                      style: const TextStyle(
+                        fontSize: 10,
+                        color: Colors.grey,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                   const SizedBox(height: 12),
                   TextField(
                     controller: passwordController,
@@ -346,8 +384,13 @@ class _GlobalSettingsPageState extends State<GlobalSettingsPage> {
                                         ),
                                         actions: [
                                           OutlinedButton(
-                                            onPressed: () =>
-                                                Navigator.of(context).pop(),
+                                            onPressed: () {
+                                              Navigator.of(context).pop();
+                                              if (Navigator.of(context)
+                                                  .canPop()) {
+                                                Navigator.of(context).pop();
+                                              }
+                                            },
                                             child: const Text('确定'),
                                           ),
                                         ],

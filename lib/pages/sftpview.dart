@@ -4,16 +4,19 @@ import 'dart:io';
 import 'dart:async';
 import 'dart:convert';
 import 'package:connssh/components/file_editor.dart';
+import 'package:file_picker_ohos/file_picker_ohos.dart';
 import 'package:flutter/material.dart';
 import 'package:dartssh2/dartssh2.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import '../models/connection_model.dart';
 import '../models/credential_model.dart';
 import '../services/setting_service.dart';
 import '../models/app_settings_model.dart';
 import '../services/ssh_service.dart';
+import 'package:path/path.dart' as path;
 //import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
 
 enum ViewMode { list, icon }
@@ -1050,7 +1053,6 @@ class _SftpPageState extends State<SftpPage> {
       final fileBytes = await _downloadToMemory(remotePath);
 
       if (_cancelOperation) {
-        // 使用正确的导航器关闭对话框
         if (mounted && _isProgressDialogOpen) {
           Navigator.of(context, rootNavigator: true).pop();
           _isProgressDialogOpen = false;
@@ -1067,23 +1069,97 @@ class _SftpPageState extends State<SftpPage> {
         return;
       }
 
-      // 获取保存路径
-      final savePath = await _saveToAppDirectory(filename, fileBytes);
+      // 第一步：先将文件保存到应用目录，同名文件直接覆盖
+      final appDocDir = await getApplicationDocumentsDirectory();
+      final downloadDir = Directory('${appDocDir.path}/Downloads');
+      if (!await downloadDir.exists()) {
+        await downloadDir.create(recursive: true);
+      }
 
-      // 先关闭进度对话框，再显示成功对话框
+      // 修改点1：直接使用原文件名，不再生成唯一文件名
+      final String basename = path.basename(filename); // 确保只获取文件名部分
+      final tempSavePath = '${downloadDir.path}/$basename';
+      final tempFile = File(tempSavePath);
+
+      // 直接覆盖写入文件
+      await tempFile.writeAsBytes(fileBytes);
+
+      // 关闭进度对话框
       if (mounted && _isProgressDialogOpen) {
         Navigator.of(context, rootNavigator: true).pop();
         _isProgressDialogOpen = false;
-
-        // 延迟一小段时间确保对话框完全关闭
-        await Future.delayed(const Duration(milliseconds: 100));
-
-        _showDownloadSuccessDialog(filename, savePath);
-        _clearSelectionAndExitMultiSelect();
       }
+
+      // 第二步：调用file_picker的saveFile方法，让用户选择最终保存位置
+      final savedPath = await FilePicker.platform.saveFile(
+        dialogTitle: '保存文件',
+        fileName: basename, // 修改点2：使用basename而不是uniqueFilename
+        initialDirectory: tempSavePath,
+        allowedExtensions: _getFileExtensions(basename),
+        bytes: fileBytes,
+      );
+
+      if (savedPath != null && savedPath.isNotEmpty) {
+        // 用户选择了保存位置
+        if (savedPath != tempSavePath) {
+          // 如果用户选择的路径与临时路径不同，则将文件移动到用户选择的位置
+          try {
+            final savedFile = File(savedPath);
+            await savedFile.writeAsBytes(fileBytes);
+            // 删除临时文件
+            await tempFile.delete();
+
+            // 显示成功对话框
+            _showDownloadSuccessDialog(basename, savedPath);
+          } catch (e) {
+            // 如果移动失败，保留临时文件并显示临时文件位置
+            debugPrint('保存到用户选择位置失败: $e');
+            _showDownloadSuccessDialog(basename, tempSavePath);
+          }
+        } else {
+          // 用户选择保存到临时文件位置，直接显示成功
+          _showDownloadSuccessDialog(basename, tempSavePath);
+        }
+      } else {
+        // 用户取消了保存对话框
+        // 询问用户是否保留临时文件
+        final shouldKeep = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('保存已取消'),
+            content: const Text('文件已下载到临时目录，是否保留？'),
+            actions: [
+              OutlinedButton(
+                onPressed: () {
+                  Navigator.of(context).pop(false); // 不保留
+                },
+                child: const Text('删除'),
+              ),
+              OutlinedButton(
+                onPressed: () {
+                  Navigator.of(context).pop(true); // 保留
+                },
+                child: const Text('保留'),
+              ),
+            ],
+          ),
+        );
+
+        if (shouldKeep == false) {
+          // 删除临时文件
+          await tempFile.delete();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('临时文件已删除')),
+          );
+        } else {
+          // 显示临时文件位置
+          _showDownloadSuccessDialog(basename, tempSavePath);
+        }
+      }
+
+      _clearSelectionAndExitMultiSelect();
     } catch (e) {
       if (mounted) {
-        // 确保对话框关闭
         if (_isProgressDialogOpen && Navigator.canPop(context)) {
           Navigator.of(context, rootNavigator: true).pop();
           _isProgressDialogOpen = false;
@@ -1095,6 +1171,78 @@ class _SftpPageState extends State<SftpPage> {
       _currentDownloadFile = null;
       _currentOperation = '';
     }
+  }
+
+// 辅助方法：根据文件名获取文件扩展名列表
+  List<String> _getFileExtensions(String filename) {
+    final extIndex = filename.lastIndexOf('.');
+    if (extIndex != -1 && extIndex < filename.length - 1) {
+      final extension = filename.substring(extIndex + 1).toLowerCase();
+      return [extension];
+    }
+    return [];
+  }
+
+// 修改显示成功对话框的方法，添加复制路径功能
+  void _showDownloadSuccessDialog(String filename, String savePath) {
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) => AlertDialog(
+        title: const Text('下载完成'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('文件: $filename'),
+            const SizedBox(height: 8),
+            const Text('保存位置:'),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: SelectableText(
+                savePath,
+                style: const TextStyle(
+                  fontSize: 12,
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              '您可尝试在文件管理器中访问此位置',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          OutlinedButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('确定'),
+          ),
+          if (Platform.isOhos)
+            OutlinedButton(
+              onPressed: () {
+                // 复制路径到剪贴板
+                Clipboard.setData(ClipboardData(text: savePath));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('路径已复制到剪贴板')),
+                );
+                Navigator.of(context).pop();
+              },
+              child: const Text('复制路径'),
+            ),
+        ],
+      ),
+    );
   }
 
   Future<Uint8List> _downloadToMemory(String remotePath) async {
@@ -1146,31 +1294,6 @@ class _SftpPageState extends State<SftpPage> {
     }
   }
 
-  Future<String> _saveToAppDirectory(
-      String filename, Uint8List fileBytes) async {
-    try {
-      final appDocDir = await getApplicationDocumentsDirectory();
-
-      final downloadDir = Directory('${appDocDir.path}/Downloads');
-      if (!await downloadDir.exists()) {
-        await downloadDir.create(recursive: true);
-      }
-
-      final uniqueFilename =
-          await _getUniqueFilename(downloadDir.path, filename);
-      final savePath = '${downloadDir.path}/$uniqueFilename';
-
-      final savedFile = File(savePath);
-      await savedFile.writeAsBytes(fileBytes);
-
-      debugPrint('文件已保存到应用目录: $savePath');
-      return savePath; // 返回保存路径
-    } catch (e) {
-      debugPrint('保存文件到应用目录失败: $e');
-      rethrow;
-    }
-  }
-
   Future<String> _getUniqueFilename(
       String dirPath, String originalFilename) async {
     final dir = Directory(dirPath);
@@ -1203,53 +1326,6 @@ class _SftpPageState extends State<SftpPage> {
     } while (files.any((path) => path.endsWith('/$newFilename')));
 
     return newFilename;
-  }
-
-  void _showDownloadSuccessDialog(String filename, String savePath) {
-    if (!mounted) return;
-
-    showDialog(
-      context: context,
-      barrierDismissible: true,
-      builder: (context) => AlertDialog(
-        title: const Text('下载完成'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('保存位置:'),
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.grey[100],
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: SelectableText(
-                savePath,
-                style: const TextStyle(
-                  fontSize: 12,
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              '您可尝试在文件管理器中访问此位置',
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          OutlinedButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('确定'),
-          ),
-        ],
-      ),
-    );
   }
 
   Future<String?> _getDownloadDirectory() async {
