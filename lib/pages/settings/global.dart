@@ -1,4 +1,6 @@
 // global_settings_page.dart
+import 'dart:io';
+
 import 'package:file_picker_ohos/file_picker_ohos.dart';
 import 'package:flutter/material.dart';
 import 'package:connssh/main.dart';
@@ -69,7 +71,9 @@ class _GlobalSettingsPageState extends State<GlobalSettingsPage> {
                     obscureText: passwordObscure,
                     decoration: InputDecoration(
                       labelText: '请设置密码',
-                      border: const OutlineInputBorder(),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12.0),
+                      ),
                       suffixIcon: IconButton(
                         icon: Icon(passwordObscure
                             ? Icons.visibility
@@ -85,7 +89,9 @@ class _GlobalSettingsPageState extends State<GlobalSettingsPage> {
                     obscureText: confirmPasswordObscure,
                     decoration: InputDecoration(
                       labelText: '确认密码',
-                      border: const OutlineInputBorder(),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12.0),
+                      ),
                       suffixIcon: IconButton(
                         icon: Icon(confirmPasswordObscure
                             ? Icons.visibility
@@ -96,9 +102,11 @@ class _GlobalSettingsPageState extends State<GlobalSettingsPage> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  const Text(
-                    '备份文件将包含所有连接、凭证和设置信息，请妥善保管',
-                  ),
+                  if (Platform.isAndroid)
+                    const Text(
+                      '备份文件将保存在应用私有目录中，您可以通过文件管理器访问。',
+                      style: TextStyle(fontSize: 12),
+                    ),
                 ],
               ),
             ),
@@ -122,12 +130,11 @@ class _GlobalSettingsPageState extends State<GlobalSettingsPage> {
                   }
 
                   final NavigatorState nav = Navigator.of(context);
-                  ScaffoldMessenger.of(context);
-
                   nav.pop();
 
+                  // 显示加载对话框
                   showDialog(
-                    context: this.context,
+                    context: context,
                     barrierDismissible: false,
                     builder: (context) => const AlertDialog(
                       backgroundColor: Colors.transparent,
@@ -143,22 +150,24 @@ class _GlobalSettingsPageState extends State<GlobalSettingsPage> {
                   );
 
                   try {
+                    // 执行备份
                     final filePath = await _backupService
                         .backupData(passwordController.text);
 
-                    if (!mounted) return;
-
-                    Navigator.of(this.context, rootNavigator: true).pop();
-
-                    if (filePath.isNotEmpty) {
-                      _showResultDialog('备份成功', '备份文件已保存到:\n$filePath');
-                    } else {
-                      _showResultDialog('备份失败', '请选择目录');
+                    // 关闭加载对话框
+                    if (Navigator.of(context, rootNavigator: true).canPop()) {
+                      Navigator.of(context, rootNavigator: true).pop();
                     }
+
+                    // 显示结果
+                    _showResultDialog('备份成功', '备份文件已保存到:\n$filePath');
                   } catch (e) {
-                    if (!mounted) return;
-                    Navigator.of(this.context, rootNavigator: true).pop();
-                    _showResultDialog('备份失败', e.toString());
+                    // 关闭加载对话框
+                    if (Navigator.of(context, rootNavigator: true).canPop()) {
+                      Navigator.of(context, rootNavigator: true).pop();
+                    }
+
+                    _showResultDialog('备份失败', '错误: $e\n请检查存储空间');
                   }
                 },
                 child: const Text('备份'),
@@ -207,8 +216,7 @@ class _GlobalSettingsPageState extends State<GlobalSettingsPage> {
                       try {
                         final FilePickerResult? result =
                             await FilePicker.platform.pickFiles(
-                          type: FileType.custom,
-                          allowedExtensions: ['cntinfo'],
+                          type: FileType.any,
                           dialogTitle: '选择备份文件',
                           allowMultiple: false,
                         );
@@ -251,7 +259,9 @@ class _GlobalSettingsPageState extends State<GlobalSettingsPage> {
                     },
                     decoration: InputDecoration(
                       labelText: '备份密码',
-                      border: const OutlineInputBorder(),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12.0),
+                      ),
                       suffixIcon: IconButton(
                         icon: Icon(
                           isObscure ? Icons.visibility : Icons.visibility_off,

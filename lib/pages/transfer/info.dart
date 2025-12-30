@@ -96,7 +96,7 @@ class ManageInfoPage extends StatelessWidget {
             decoration: BoxDecoration(
               border: Border.all(
                 color: Colors.grey,
-                width: 0.5,
+                width: 1,
               ),
               borderRadius: BorderRadius.circular(12),
             ),

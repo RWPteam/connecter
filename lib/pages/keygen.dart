@@ -498,7 +498,7 @@ class _KeygenPageState extends State<KeygenPage> {
                           decoration: InputDecoration(
                             labelText: '密钥算法',
                             border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8.0),
+                              borderRadius: BorderRadius.circular(12.0),
                             ),
                             contentPadding: const EdgeInsets.symmetric(
                               horizontal: 12,
@@ -533,7 +533,7 @@ class _KeygenPageState extends State<KeygenPage> {
                           decoration: InputDecoration(
                             labelText: _keyAlgorithm == 'rsa' ? '密钥长度' : '椭圆曲线',
                             border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8.0),
+                              borderRadius: BorderRadius.circular(12.0),
                             ),
                             contentPadding: const EdgeInsets.symmetric(
                               horizontal: 12,
@@ -566,7 +566,7 @@ class _KeygenPageState extends State<KeygenPage> {
                           decoration: InputDecoration(
                             labelText: '密钥格式',
                             border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8.0),
+                              borderRadius: BorderRadius.circular(12.0),
                             ),
                             contentPadding: const EdgeInsets.symmetric(
                               horizontal: 12,
@@ -597,7 +597,7 @@ class _KeygenPageState extends State<KeygenPage> {
                     decoration: InputDecoration(
                       labelText: '私钥密码（可选）',
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8.0),
+                        borderRadius: BorderRadius.circular(12.0),
                       ),
                       hintText: '为空则不设置密码保护',
                       contentPadding: const EdgeInsets.symmetric(
@@ -781,7 +781,7 @@ class _KeygenPageState extends State<KeygenPage> {
                           decoration: InputDecoration(
                             labelText: '密钥算法',
                             border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8.0),
+                              borderRadius: BorderRadius.circular(12.0),
                             ),
                             contentPadding: const EdgeInsets.symmetric(
                               horizontal: 12,
@@ -816,7 +816,7 @@ class _KeygenPageState extends State<KeygenPage> {
                           decoration: InputDecoration(
                             labelText: _keyAlgorithm == 'rsa' ? '密钥长度' : '椭圆曲线',
                             border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8.0),
+                              borderRadius: BorderRadius.circular(12.0),
                             ),
                             contentPadding: const EdgeInsets.symmetric(
                               horizontal: 12,
@@ -849,7 +849,7 @@ class _KeygenPageState extends State<KeygenPage> {
                           decoration: InputDecoration(
                             labelText: '密钥格式',
                             border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8.0),
+                              borderRadius: BorderRadius.circular(12.0),
                             ),
                             contentPadding: const EdgeInsets.symmetric(
                               horizontal: 12,
@@ -878,7 +878,7 @@ class _KeygenPageState extends State<KeygenPage> {
                           decoration: InputDecoration(
                             labelText: '私钥密码（可选）',
                             border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8.0),
+                              borderRadius: BorderRadius.circular(12.0),
                             ),
                             hintText: '为空则不设置密码保护',
                             contentPadding: const EdgeInsets.symmetric(

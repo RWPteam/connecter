@@ -1,8 +1,6 @@
 import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'terminal.dart';
-// ignore: unused_import
 import 'package:uuid/uuid.dart';
 import '../models/connection_model.dart';
 import '../services/storage_service.dart';
@@ -20,7 +18,9 @@ class ManageConnectionsPage extends StatefulWidget {
 class _ManageConnectionsPageState extends State<ManageConnectionsPage> {
   final _storageService = StorageService();
   List<ConnectionInfo> _connections = [];
+  List<ArchiveGroup> _archiveGroups = [];
   bool _isConnecting = false;
+  bool _isUngroupedExpanded = true; // 添加未分组展开状态
   final _uuid = const Uuid();
 
   bool _canDuplicate(ConnectionInfo current) {
@@ -39,6 +39,7 @@ class _ManageConnectionsPageState extends State<ManageConnectionsPage> {
   void initState() {
     super.initState();
     _loadConnections();
+    _loadArchiveGroups();
   }
 
   Future<void> _loadConnections() async {
@@ -46,6 +47,141 @@ class _ManageConnectionsPageState extends State<ManageConnectionsPage> {
     setState(() {
       _connections = connections;
     });
+  }
+
+  Future<void> _loadArchiveGroups() async {
+    final groups = await _storageService.getArchiveGroups();
+    setState(() {
+      _archiveGroups = groups;
+    });
+  }
+
+  void _createArchiveGroup() {
+    final controller = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('创建分组'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            decoration: InputDecoration(
+              hintText: '请输入分组名称',
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12.0),
+              ),
+            ),
+          ),
+          actions: [
+            OutlinedButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('取消'),
+            ),
+            OutlinedButton(
+              onPressed: () {
+                final text = controller.text.trim();
+                if (text.isNotEmpty) {
+                  Navigator.of(context).pop();
+                  _saveArchiveGroup(text);
+                }
+              },
+              child: const Text('创建'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _saveArchiveGroup(String name) async {
+    final newGroup = ArchiveGroup(
+      id: _uuid.v4(),
+      name: name,
+    );
+    await _storageService.saveArchiveGroup(newGroup);
+    await _loadArchiveGroups();
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('分组 "$name" 创建成功')),
+      );
+    }
+  }
+
+  void _editArchiveGroup(ArchiveGroup group) {
+    showDialog(
+      context: context,
+      builder: (context) => ArchiveGroupEditDialog(
+        group: group,
+        connections: _connections,
+        onSave: (updatedGroup, selectedConnections) async {
+          final updated = ArchiveGroup(
+            id: group.id,
+            name: updatedGroup.name,
+            connectionIds: selectedConnections.map((c) => c.id).toList(),
+            isExpanded: group.isExpanded,
+          );
+
+          await _storageService.saveArchiveGroup(updated);
+
+          for (var connection in _connections) {
+            if (selectedConnections.contains(connection)) {
+              connection.archive = updatedGroup.name;
+            } else if (connection.archive == group.name) {
+              connection.archive = null;
+            }
+            await _storageService.saveConnection(connection);
+          }
+
+          await _loadConnections();
+          await _loadArchiveGroups();
+
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('分组 "${updatedGroup.name}" 已更新')),
+            );
+          }
+        },
+      ),
+    );
+  }
+
+  void _deleteArchiveGroup(ArchiveGroup group) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('删除分组'),
+        content: Text('要删除分组 "${group.name}" 吗？分组内的连接不会被删除'),
+        actions: [
+          OutlinedButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('取消'),
+          ),
+          OutlinedButton(
+            onPressed: () async {
+              await _storageService.deleteArchiveGroup(group.id);
+              await _loadArchiveGroups();
+              await _loadConnections();
+              Navigator.of(context).pop();
+            },
+            child: const Text('删除'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _toggleGroupExpanded(ArchiveGroup group) async {
+    final updated = ArchiveGroup(
+      id: group.id,
+      name: group.name,
+      connectionIds: group.connectionIds,
+      isExpanded: !group.isExpanded,
+    );
+    await _storageService.saveArchiveGroup(updated);
+    await _loadArchiveGroups();
   }
 
   void _editConnection(ConnectionInfo connection) {
@@ -63,16 +199,18 @@ class _ManageConnectionsPageState extends State<ManageConnectionsPage> {
     final typeName = targetType == ConnectionType.ssh ? 'SSH' : 'SFTP';
 
     final newConnection = ConnectionInfo(
-      id: _uuid.v4(), // 生成新的唯一ID
+      id: _uuid.v4(),
       name: '${connection.name}',
       host: connection.host,
       port: connection.port,
       type: targetType,
-      credentialId: connection.credentialId, remember: true,
+      credentialId: connection.credentialId,
+      remember: true,
+      archive: connection.archive,
     );
 
     await _storageService.saveConnection(newConnection);
-    await _loadConnections(); // 重新加载列表
+    await _loadConnections();
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -96,11 +234,8 @@ class _ManageConnectionsPageState extends State<ManageConnectionsPage> {
             onPressed: () async {
               await _storageService.deleteConnection(connection.id);
               if (mounted) {
-                setState(() {
-                  _loadConnections();
-                });
+                await _loadConnections();
               }
-              // ignore: use_build_context_synchronously
               Navigator.of(context).pop();
             },
             child: const Text('删除'),
@@ -143,7 +278,6 @@ class _ManageConnectionsPageState extends State<ManageConnectionsPage> {
         orElse: () => throw Exception('找不到认证凭证'),
       );
 
-      // 设置3秒超时
       await sshService
           .connect(connection, credential)
           .timeout(const Duration(seconds: 3), onTimeout: () {
@@ -196,7 +330,7 @@ class _ManageConnectionsPageState extends State<ManageConnectionsPage> {
       }
     } catch (e) {
       if (mounted) {
-        Navigator.of(context).pop(); // 关闭加载对话框
+        Navigator.of(context).pop();
       }
 
       if (mounted) {
@@ -232,113 +366,309 @@ class _ManageConnectionsPageState extends State<ManageConnectionsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final groupedConnections = <String, List<ConnectionInfo>>{};
+    final ungroupedConnections = <ConnectionInfo>[];
+
+    for (var connection in _connections) {
+      if (connection.archive != null && connection.archive!.isNotEmpty) {
+        groupedConnections.putIfAbsent(connection.archive!, () => []);
+        groupedConnections[connection.archive]!.add(connection);
+      } else {
+        ungroupedConnections.add(connection);
+      }
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('管理连接'),
         actions: [
           IconButton(
+            onPressed: _createArchiveGroup,
+            icon: const Icon(Icons.create_new_folder_outlined),
+            tooltip: '创建分组',
+          ),
+          IconButton(
             onPressed: _showNewConnectionDialog,
             icon: const Icon(Icons.add),
+            tooltip: '新建连接',
           ),
         ],
       ),
-      body: _connections.isEmpty
+      body: _connections.isEmpty && _archiveGroups.isEmpty
           ? _buildEmptyState()
-          : ListView.builder(
-              itemCount: _connections.length,
-              itemBuilder: (context, index) {
-                final connection = _connections[index];
-                final canDup = _canDuplicate(connection);
+          : ListView(
+              children: [
+                ..._archiveGroups.map((group) {
+                  final groupConnections = groupedConnections[group.name] ?? [];
+                  return _buildGroupTile(group, groupConnections);
+                }).toList(),
+                if (ungroupedConnections.isNotEmpty) ...[
+                  _buildUngroupedHeaderTile(ungroupedConnections.length),
+                  if (_isUngroupedExpanded) // 根据展开状态显示连接列表
+                    ...ungroupedConnections
+                        .map((connection) =>
+                            _buildConnectionTile(connection, withMargin: true))
+                        .toList(),
+                ],
+              ],
+            ),
+    );
+  }
 
-                return Container(
-                  margin:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: Colors.transparent,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: Colors.grey,
-                      width: 1,
+  Widget _buildUngroupedHeaderTile(int count) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      child: Column(
+        children: [
+          Container(
+            height: 56,
+            decoration: BoxDecoration(
+              color: Colors.transparent,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: InkWell(
+              onTap: () {
+                setState(() {
+                  _isUngroupedExpanded = !_isUngroupedExpanded;
+                });
+              },
+              borderRadius: BorderRadius.circular(12),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.withOpacity(0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        _isUngroupedExpanded
+                            ? Icons.expand_less
+                            : Icons.expand_more,
+                        size: 20,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
                     ),
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: ListTile(
-                      leading: Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: Colors.grey.withOpacity(0.1),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          connection.type == ConnectionType.ssh
-                              ? Icons.terminal
-                              : Icons.folder,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                      ),
-                      title: Text(
-                        connection.name,
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      subtitle: Text(
-                        '${connection.host}:${connection.port}',
-                        style: TextStyle(color: Colors.grey[600]),
-                      ),
-                      trailing: PopupMenuButton<String>(
-                        onSelected: (value) {
-                          switch (value) {
-                            case 'connect':
-                              _connectTo(connection);
-                              break;
-                            case 'duplicate':
-                              _duplicateConnection(connection);
-                              break;
-                            case 'edit':
-                              _editConnection(connection);
-                              break;
-                            case 'delete':
-                              _deleteConnection(connection);
-                              break;
-                          }
-                        },
-                        itemBuilder: (context) => [
-                          const PopupMenuItem(
-                            value: 'connect',
-                            child: ListTile(
-                              title: Text('连接'),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            '未分组',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
                             ),
                           ),
-                          PopupMenuItem(
-                            value: 'duplicate',
-                            enabled: canDup, // 如果已存在则禁用
-                            child: ListTile(
-                              title: Text(connection.type == ConnectionType.ssh
-                                  ? '复制为 SFTP'
-                                  : '复制为 SSH'),
-                            ),
-                          ),
-                          const PopupMenuItem(
-                            value: 'edit',
-                            child: ListTile(
-                              title: Text('编辑'),
-                            ),
-                          ),
-                          const PopupMenuItem(
-                            value: 'delete',
-                            child: ListTile(
-                              title: Text('删除',
-                                  style: TextStyle(color: Colors.red)),
+                          Text(
+                            '$count 个连接',
+                            style: TextStyle(
+                              color: Colors.grey[600],
+                              fontSize: 12,
                             ),
                           ),
                         ],
                       ),
-                      onTap: () => _connectTo(connection),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGroupTile(ArchiveGroup group, List<ConnectionInfo> connections) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      child: Column(
+        children: [
+          Container(
+            height: 56,
+            decoration: BoxDecoration(
+              color: Colors.transparent,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: IconButton(
+                      icon: Icon(
+                        group.isExpanded
+                            ? Icons.expand_less
+                            : Icons.expand_more,
+                        size: 20,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                      onPressed: () => _toggleGroupExpanded(group),
+                      padding: EdgeInsets.zero,
                     ),
                   ),
-                );
-              }),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          group.name,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                        Text(
+                          '${connections.length} 个连接',
+                          style: TextStyle(
+                            color: Colors.grey[600],
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.edit, size: 20),
+                        onPressed: () => _editArchiveGroup(group),
+                        padding: const EdgeInsets.all(4),
+                        constraints: const BoxConstraints(),
+                        tooltip: '编辑分组',
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete, size: 20),
+                        onPressed: () => _deleteArchiveGroup(group),
+                        padding: const EdgeInsets.all(4),
+                        constraints: const BoxConstraints(),
+                        tooltip: '删除分组',
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (group.isExpanded && connections.isNotEmpty)
+            ...connections
+                .map((connection) => Container(
+                      margin: const EdgeInsets.only(top: 6),
+                      child:
+                          _buildConnectionTile(connection, withMargin: false),
+                    ))
+                .toList(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildConnectionTile(ConnectionInfo connection,
+      {bool withMargin = true}) {
+    final canDup = _canDuplicate(connection);
+
+    return Container(
+      margin: withMargin
+          ? const EdgeInsets.symmetric(horizontal: 16, vertical: 6)
+          : const EdgeInsets.symmetric(horizontal: 0, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: Colors.grey,
+          width: 1,
+        ),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: ListTile(
+          leading: Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: Colors.grey.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              connection.type == ConnectionType.ssh
+                  ? Icons.terminal
+                  : Icons.folder,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+          ),
+          title: Text(
+            connection.name,
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+          subtitle: Text(
+            '${connection.host}:${connection.port}',
+            style: TextStyle(color: Colors.grey[600]),
+          ),
+          trailing: PopupMenuButton<String>(
+            onSelected: (value) {
+              switch (value) {
+                case 'connect':
+                  _connectTo(connection);
+                  break;
+                case 'duplicate':
+                  _duplicateConnection(connection);
+                  break;
+                case 'edit':
+                  _editConnection(connection);
+                  break;
+                case 'delete':
+                  _deleteConnection(connection);
+                  break;
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'connect',
+                child: ListTile(
+                  title: Text('连接'),
+                ),
+              ),
+              PopupMenuItem(
+                value: 'duplicate',
+                enabled: canDup,
+                child: ListTile(
+                  title: Text(connection.type == ConnectionType.ssh
+                      ? '复制为 SFTP'
+                      : '复制为 SSH'),
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'edit',
+                child: ListTile(
+                  title: Text('编辑'),
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'delete',
+                child: ListTile(
+                  title: Text('删除', style: TextStyle(color: Colors.red)),
+                ),
+              ),
+            ],
+          ),
+          onTap: () => _connectTo(connection),
+        ),
+      ),
     );
   }
 
@@ -350,8 +680,216 @@ class _ManageConnectionsPageState extends State<ManageConnectionsPage> {
           Icon(Icons.no_encryption_outlined, size: 64, color: Colors.grey),
           SizedBox(height: 16),
           Text('暂无保存的连接', style: TextStyle(fontSize: 16)),
-          Text('点击右上角 + 按钮添加新的连接', style: TextStyle(color: Colors.grey)),
+          Text('点击右上角按钮添加连接', style: TextStyle(color: Colors.grey)),
         ],
+      ),
+    );
+  }
+}
+
+class ArchiveGroupEditDialog extends StatefulWidget {
+  final ArchiveGroup group;
+  final List<ConnectionInfo> connections;
+  final Function(ArchiveGroup, List<ConnectionInfo>) onSave;
+
+  const ArchiveGroupEditDialog({
+    super.key,
+    required this.group,
+    required this.connections,
+    required this.onSave,
+  });
+
+  @override
+  State<ArchiveGroupEditDialog> createState() => _ArchiveGroupEditDialogState();
+}
+
+class _ArchiveGroupEditDialogState extends State<ArchiveGroupEditDialog> {
+  late TextEditingController _nameController;
+  late List<ConnectionInfo> _selectedConnections;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.group.name);
+    _selectedConnections = widget.connections
+        .where((c) => widget.group.connectionIds.contains(c.id))
+        .toList();
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
+
+  void _toggleConnection(ConnectionInfo connection) {
+    setState(() {
+      if (_selectedConnections.contains(connection)) {
+        _selectedConnections.remove(connection);
+      } else {
+        _selectedConnections.add(connection);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 500, maxHeight: 600),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Text(
+                '编辑分组',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+            ),
+            Divider(height: 1, color: Colors.grey[300]),
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: TextField(
+                controller: _nameController,
+                decoration: InputDecoration(
+                  labelText: '分组名称',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12.0),
+                  ),
+                ),
+              ),
+            ),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16.0),
+              child: Text(
+                '选择连接',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: widget.connections.length,
+                itemBuilder: (context, index) {
+                  final connection = widget.connections[index];
+                  final isSelected = _selectedConnections.contains(connection);
+
+                  return Container(
+                    margin:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? Theme.of(context).primaryColor.withOpacity(0.2)
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: Colors.grey,
+                        width: 1,
+                      ),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: () => _toggleConnection(connection),
+                          borderRadius: BorderRadius.circular(12),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 8),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 40,
+                                  height: 40,
+                                  decoration: BoxDecoration(
+                                    color: isSelected
+                                        ? Theme.of(context).primaryColor
+                                        : Colors.grey.withOpacity(0.1),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Icon(
+                                    connection.type == ConnectionType.ssh
+                                        ? Icons.terminal
+                                        : Icons.folder,
+                                    color: isSelected
+                                        ? Colors.white
+                                        : Theme.of(context).colorScheme.primary,
+                                    size: 20,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        connection.name,
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          color: isSelected
+                                              ? Theme.of(context).primaryColor
+                                              : null,
+                                        ),
+                                      ),
+                                      Text(
+                                        '${connection.host}:${connection.port}',
+                                        style: TextStyle(
+                                          color: isSelected
+                                              ? Theme.of(context)
+                                                  .primaryColor
+                                                  .withOpacity(0.7)
+                                              : Colors.grey[600],
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            Divider(height: 1, color: Colors.grey[300]),
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  OutlinedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('取消'),
+                  ),
+                  const SizedBox(width: 12),
+                  OutlinedButton(
+                    onPressed: () {
+                      final updatedGroup = ArchiveGroup(
+                        id: widget.group.id,
+                        name: _nameController.text.trim(),
+                        connectionIds:
+                            _selectedConnections.map((c) => c.id).toList(),
+                        isExpanded: widget.group.isExpanded,
+                      );
+                      widget.onSave(updatedGroup, _selectedConnections);
+                      Navigator.of(context).pop();
+                    },
+                    child: const Text('保存'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

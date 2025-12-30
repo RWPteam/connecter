@@ -5,7 +5,6 @@ import 'package:flutter/foundation.dart';
 import 'package:encrypt/encrypt.dart' as encrypt_package;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:file_picker_ohos/file_picker_ohos.dart';
 import '../models/backup_data_model.dart';
 import '../services/storage_service.dart';
@@ -46,7 +45,7 @@ class BackupService {
       recentConnections: recentConnections,
       settings: settings,
       backupTime: DateTime.now(),
-      version: '1.2.2',
+      version: '1.2.3',
     );
   }
 
@@ -68,34 +67,21 @@ class BackupService {
       String savePath;
 
       if (Platform.isAndroid) {
-        final status = await Permission.storage.request();
-        if (!status.isGranted) {
-          throw Exception('需要存储权限才能保存文件');
+        const String basePath = '/sdcard/Download';
+        const String backupDirPath = '$basePath/ConnSSH/backup';
+
+        final backupDir = Directory(backupDirPath);
+        if (!await backupDir.exists()) {
+          await backupDir.create(recursive: true);
         }
 
-        final defaultDir = await _getPlatformDefaultDownloadPath();
-
-        String? result = await FilePicker.platform.saveFile(
-          dialogTitle: '保存备份文件',
-          fileName: fileName,
-          allowedExtensions: ['cntinfo'],
-          type: FileType.custom,
-          initialDirectory: defaultDir,
-        );
-
-        if (result == null) {
-          throw Exception('用户取消选择保存位置');
-        }
-
-        if (!result.toLowerCase().endsWith('.cntinfo')) {
-          result = '$result.cntinfo';
-        }
-
-        final file = File(result);
+        final filePath = '$backupDirPath/$fileName';
+        final file = File(filePath);
         await file.writeAsBytes(encrypted.bytes);
         savePath = file.path;
+
+        debugPrint('备份文件已保存到: $savePath');
       } else if (Platform.operatingSystem == 'ohos') {
-        // 鸿蒙OS备份逻辑
         final appDocDir = await getApplicationDocumentsDirectory();
         final backupDir = Directory('${appDocDir.path}/Backups');
         if (!await backupDir.exists()) {
@@ -105,8 +91,6 @@ class BackupService {
         final tempSavePath = '${backupDir.path}/$fileName';
         final tempFile = File(tempSavePath);
         await tempFile.writeAsBytes(encrypted.bytes);
-
-        // 使用FilePicker让用户选择保存位置
         final savedPath = await FilePicker.platform.saveFile(
           dialogTitle: '保存备份文件',
           fileName: fileName,
@@ -130,7 +114,6 @@ class BackupService {
             savePath = tempSavePath;
           }
         } else {
-          // 用户取消保存，询问是否保留临时文件
           final shouldKeep = await _showKeepTempFileDialog();
           if (shouldKeep) {
             savePath = tempSavePath;
@@ -194,55 +177,6 @@ class BackupService {
     return false;
   }
 
-  static Future<String?> _getPlatformDefaultDownloadPath() async {
-    if (Platform.isAndroid) {
-      try {
-        final externalDir = await getExternalStorageDirectory();
-        if (externalDir != null) {
-          final downloadDir = Directory('${externalDir.path}/Download');
-          if (!await downloadDir.exists()) {
-            await downloadDir.create(recursive: true);
-          }
-          return downloadDir.path;
-        }
-      } catch (e) {
-        debugPrint('获取Android下载目录失败: $e');
-      }
-
-      try {
-        final appDocDir = await getApplicationDocumentsDirectory();
-        return appDocDir.path;
-      } catch (e) {
-        debugPrint('获取应用文档目录失败: $e');
-      }
-    } else if (Platform.isIOS) {
-      try {
-        final appDocDir = await getApplicationDocumentsDirectory();
-        return appDocDir.path;
-      } catch (e) {
-        debugPrint('获取iOS文档目录失败: $e');
-      }
-    } else if (Platform.isWindows) {
-      final downloadsPath = Platform.environment['USERPROFILE'];
-      if (downloadsPath != null) {
-        final downloadDir = Directory('$downloadsPath\\Downloads');
-        if (await downloadDir.exists()) {
-          return downloadDir.path;
-        }
-      }
-    } else if (Platform.isMacOS) {
-      final homePath = Platform.environment['HOME'];
-      if (homePath != null) {
-        final downloadDir = Directory('$homePath/Downloads');
-        if (await downloadDir.exists()) {
-          return downloadDir.path;
-        }
-      }
-    }
-
-    return null;
-  }
-
   Future<BackupData> restoreData(String filePath, String password) async {
     try {
       Uint8List encryptedBytes;
@@ -266,8 +200,30 @@ class BackupService {
 
         filePath = platformFile.path!;
       }
+      if (Platform.isAndroid && filePath.isEmpty) {
+        const String backupDirPath = '/sdcard/Download/ConnSSH/backup';
+        final backupDir = Directory(backupDirPath);
 
-      // 读取文件
+        if (!await backupDir.exists()) {
+          throw Exception('备份目录不存在，请先进行备份');
+        }
+
+        final files = await backupDir
+            .list()
+            .where((entity) => entity.path.toLowerCase().endsWith('.cntinfo'))
+            .map((entity) => entity.path)
+            .toList();
+
+        if (files.isEmpty) {
+          throw Exception('备份目录中没有找到备份文件');
+        }
+
+        files.sort((a, b) => b.compareTo(a));
+        filePath = files.first;
+
+        debugPrint('使用最新备份文件: $filePath');
+      }
+
       final file = File(filePath);
       if (!await file.exists()) {
         throw Exception('备份文件不存在');

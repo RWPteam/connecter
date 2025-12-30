@@ -445,7 +445,7 @@ class _MonitorServerPageState extends State<MonitorServerPage> {
               decoration: InputDecoration(
                 labelText: '已保存的连接',
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10.0),
+                  borderRadius: BorderRadius.circular(12.0),
                 ),
               ),
               items: [

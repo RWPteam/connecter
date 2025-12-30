@@ -1,12 +1,10 @@
 // ignore_for_file: use_build_context_synchronously
 
 import 'dart:convert';
-import 'dart:typed_data';
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:code_text_field/code_text_field.dart';
-
-// --- 核心语言包 ---
 import 'package:highlight/languages/dart.dart';
 import 'package:highlight/languages/javascript.dart';
 import 'package:highlight/languages/python.dart';
@@ -14,9 +12,8 @@ import 'package:highlight/languages/java.dart';
 import 'package:highlight/languages/cpp.dart';
 import 'package:highlight/languages/yaml.dart';
 import 'package:highlight/languages/bash.dart';
-// --- 新增语言支持 ---
 import 'package:highlight/languages/json.dart';
-import 'package:highlight/languages/xml.dart'; // 支持 HTML 和 XML
+import 'package:highlight/languages/xml.dart';
 import 'package:highlight/languages/css.dart';
 import 'package:highlight/languages/markdown.dart';
 import 'package:highlight/languages/go.dart';
@@ -26,8 +23,6 @@ import 'package:highlight/languages/sql.dart';
 import 'package:highlight/languages/kotlin.dart';
 import 'package:highlight/languages/swift.dart';
 import 'package:highlight/languages/makefile.dart';
-
-// 高亮主题
 import 'package:flutter_highlight/themes/monokai-sublime.dart';
 import 'package:flutter_highlight/themes/github.dart';
 
@@ -55,17 +50,19 @@ class _FileEditorPageState extends State<FileEditorPage> {
   bool _isModified = false;
   bool _isSaving = false;
   bool _showSearch = false;
+  bool get ismobile =>
+      defaultTargetPlatform == TargetPlatform.android ||
+      defaultTargetPlatform == TargetPlatform.ohos ||
+      defaultTargetPlatform == TargetPlatform.iOS;
 
   final TextEditingController _findController = TextEditingController();
   final TextEditingController _replaceController = TextEditingController();
 
-  // 历史记录栈
   final List<String> _history = [];
   int _historyIndex = -1;
   bool _isIgnoringListener = false;
   Timer? _historyTimer;
 
-  // 扩展后的语言字典
   final Map<String, dynamic> _languages = {
     'Bash': bash,
     'C++': cpp,
@@ -92,7 +89,6 @@ class _FileEditorPageState extends State<FileEditorPage> {
   @override
   void initState() {
     super.initState();
-    // 根据后缀名简单初始化语言逻辑（可选）
     _currentLangKey = _detectLanguage(widget.filename);
 
     _codeController = CodeController(
@@ -105,7 +101,6 @@ class _FileEditorPageState extends State<FileEditorPage> {
     _codeController.addListener(_handleTextChange);
   }
 
-  // 自动根据后缀识别语言
   String _detectLanguage(String filename) {
     String ext = filename.split('.').last.toLowerCase();
     switch (ext) {
@@ -146,8 +141,6 @@ class _FileEditorPageState extends State<FileEditorPage> {
     }
   }
 
-  // --- 逻辑处理 ---
-
   void _handleTextChange() {
     if (_isIgnoringListener) return;
     if (!_isModified && _codeController.text != widget.initialContent) {
@@ -181,8 +174,6 @@ class _FileEditorPageState extends State<FileEditorPage> {
     }
   }
 
-  // --- 样式辅助 ---
-
   Color _getAppBarColor() {
     return Theme.of(context).brightness == Brightness.dark
         ? const Color(0xFF1E1E1E)
@@ -192,7 +183,6 @@ class _FileEditorPageState extends State<FileEditorPage> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final isMobile = MediaQuery.of(context).size.width < 600;
 
     return PopScope(
       canPop: false,
@@ -204,21 +194,20 @@ class _FileEditorPageState extends State<FileEditorPage> {
       },
       child: Scaffold(
         backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-        // 1. 高度定制的 AppBar
         appBar: AppBar(
           toolbarHeight: 40,
           backgroundColor: _getAppBarColor(),
           foregroundColor: Colors.white,
           titleSpacing: 0,
           automaticallyImplyLeading: false,
-          leading: isMobile
+          leading: ismobile
               ? null
               : IconButton(
                   icon: const Icon(Icons.arrow_back, size: 20),
                   onPressed: () => Navigator.of(context).pop(),
                 ),
           title: Padding(
-            padding: EdgeInsets.only(left: isMobile ? 18.0 : 0),
+            padding: EdgeInsets.only(left: ismobile ? 18.0 : 0),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -234,7 +223,9 @@ class _FileEditorPageState extends State<FileEditorPage> {
                   children: [
                     Icon(
                       _isModified ? Icons.circle : Icons.circle_outlined,
-                      color: _isModified ? Colors.orange : Colors.white70,
+                      color: _isModified
+                          ? Theme.of(context).primaryColor
+                          : Colors.white70,
                       size: 8,
                     ),
                     const SizedBox(width: 4),
@@ -253,7 +244,6 @@ class _FileEditorPageState extends State<FileEditorPage> {
             ),
           ),
           actions: [
-            // 只保留保存按钮
             IconButton(
               icon: Icon(_isSaving ? Icons.hourglass_empty : Icons.save,
                   size: 20),
@@ -319,7 +309,6 @@ class _FileEditorPageState extends State<FileEditorPage> {
     );
   }
 
-  // 快捷工具栏
   Widget _buildShortcutBar(bool isDark) {
     return Container(
       height: 38,
@@ -339,8 +328,6 @@ class _FileEditorPageState extends State<FileEditorPage> {
               isDark),
           _toolBtn(Icons.text_decrease, "", () => setState(() => _fontSize--),
               isDark),
-
-          // 语言切换下拉
           PopupMenuButton<String>(
             onSelected: (key) => setState(() {
               _currentLangKey = key;
@@ -453,8 +440,8 @@ class _FileEditorPageState extends State<FileEditorPage> {
         _isModified = false;
         _isSaving = false;
       });
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('文件已保存'), behavior: SnackBarBehavior.floating));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('文件已保存')));
     } catch (e) {
       setState(() => _isSaving = false);
     }

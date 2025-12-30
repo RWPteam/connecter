@@ -89,9 +89,11 @@ class _SFTPSettingsPageState extends State<SFTPSettingsPage> {
         title: const Text('默认SFTP路径'),
         content: TextField(
           controller: controller,
-          decoration: const InputDecoration(
+          decoration: InputDecoration(
             hintText: '例如: /home/username',
-            border: OutlineInputBorder(),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12.0),
+            ),
           ),
           autofocus: true,
         ),
@@ -145,7 +147,9 @@ class _SFTPSettingsPageState extends State<SFTPSettingsPage> {
               controller: controller,
               decoration: InputDecoration(
                 hintText: Platform.isAndroid ? '留空将在每次下载时询问' : '请输入下载目录路径',
-                border: const OutlineInputBorder(),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12.0),
+                ),
               ),
               readOnly: !Platform.isWindows,
             ),
@@ -173,6 +177,29 @@ class _SFTPSettingsPageState extends State<SFTPSettingsPage> {
         ),
         actions: [
           OutlinedButton(
+            onPressed: () async {
+              setState(() {
+                _downloadPath = '';
+              });
+              Navigator.of(context).pop();
+              await _saveSettings();
+
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('已清除默认下载路径'),
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+              }
+            },
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.red,
+              side: const BorderSide(color: Colors.red),
+            ),
+            child: const Text('清除'),
+          ),
+          OutlinedButton(
             onPressed: () => Navigator.of(context).pop(),
             child: const Text('取消'),
           ),
@@ -191,11 +218,70 @@ class _SFTPSettingsPageState extends State<SFTPSettingsPage> {
     );
   }
 
+  Future<void> _clearDownloadPath() async {
+    try {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('确认清除'),
+          content: const Text('确定要清除默认下载路径吗？清除后下载文件时将需要手动选择保存位置。'),
+          actions: [
+            OutlinedButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('取消'),
+            ),
+            OutlinedButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.red,
+                side: const BorderSide(color: Colors.red),
+              ),
+              child: const Text('清除'),
+            ),
+          ],
+        ),
+      );
+
+      if (confirmed == true) {
+        setState(() {
+          _downloadPath = '';
+        });
+        await _saveSettings();
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('已清除默认下载路径'),
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('清除失败'),
+            content: Text(e.toString()),
+            actions: [
+              OutlinedButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('确定'),
+              ),
+            ],
+          ),
+        );
+      }
+    }
+  }
+
   Widget _buildSettingTile({
     required IconData icon,
     required String title,
     required String subtitle,
     required VoidCallback onTap,
+    bool showClearButton = false,
   }) {
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 16.0),
@@ -236,10 +322,28 @@ class _SFTPSettingsPageState extends State<SFTPSettingsPage> {
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
         ),
-        trailing: const Icon(
-          Icons.arrow_forward_ios,
-          size: 16,
-          color: Colors.grey,
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (showClearButton && _downloadPath.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(right: 8.0),
+                child: IconButton(
+                  icon: const Icon(
+                    Icons.clear,
+                    color: Colors.red,
+                    size: 20,
+                  ),
+                  onPressed: _clearDownloadPath,
+                  tooltip: '清除下载路径',
+                ),
+              ),
+            const Icon(
+              Icons.arrow_forward_ios,
+              size: 16,
+              color: Colors.grey,
+            ),
+          ],
         ),
         onTap: onTap,
         contentPadding: const EdgeInsets.symmetric(
@@ -278,6 +382,7 @@ class _SFTPSettingsPageState extends State<SFTPSettingsPage> {
                         : _downloadPath,
                     icon: Icons.download,
                     onTap: _showDownloadPathDialog,
+                    showClearButton: true,
                   ),
                 ],
               ),

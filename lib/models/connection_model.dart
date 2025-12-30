@@ -9,6 +9,7 @@ class ConnectionInfo {
   bool isPinned;
   DateTime lastUsed;
   String? sftpPath;
+  String? archive;
 
   ConnectionInfo({
     required this.id,
@@ -20,8 +21,9 @@ class ConnectionInfo {
     required this.remember,
     this.isPinned = false,
     this.sftpPath,
+    this.archive, // 新增
     DateTime? lastUsed,
-  }) : lastUsed = lastUsed ?? DateTime.now(); //定义连接信息模型
+  }) : lastUsed = lastUsed ?? DateTime.now();
 
   Map<String, dynamic> toJson() {
     return {
@@ -35,8 +37,9 @@ class ConnectionInfo {
       'isPinned': isPinned,
       'lastUsed': lastUsed.toIso8601String(),
       'sftpPath': sftpPath,
+      'archive': archive,
     };
-  } //转换为json
+  }
 
   factory ConnectionInfo.fromJson(Map<String, dynamic> json) {
     ConnectionType type;
@@ -59,9 +62,42 @@ class ConnectionInfo {
       remember: json['remember'],
       isPinned: json['isPinned'] ?? false,
       sftpPath: json['sftpPath'],
+      archive: json['archive'],
       lastUsed: json['lastUsed'] != null
           ? DateTime.parse(json['lastUsed'])
           : DateTime.now(),
+    );
+  }
+}
+
+class ArchiveGroup {
+  String id;
+  String name;
+  List<String> connectionIds;
+  bool isExpanded;
+
+  ArchiveGroup({
+    required this.id,
+    required this.name,
+    this.connectionIds = const [],
+    this.isExpanded = true,
+  });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'connectionIds': connectionIds,
+      'isExpanded': isExpanded,
+    };
+  }
+
+  factory ArchiveGroup.fromJson(Map<String, dynamic> json) {
+    return ArchiveGroup(
+      id: json['id'],
+      name: json['name'],
+      connectionIds: List<String>.from(json['connectionIds'] ?? []),
+      isExpanded: json['isExpanded'] ?? true,
     );
   }
 }

@@ -52,31 +52,22 @@ class _HelpPageState extends State<HelpPage> {
       imagePath: 'assets/textedit.png',
     ),
     HelpItem(
-      title: '数据面板（Beta）',
-      content: '此功能可以监控大部分Linux服务器的系统运行数据，但对于部分服务器不起作用。需要您的服务器支持free、awk等命令',
-      imagePath: 'assets/data.png',
-    ),
-    HelpItem(
-      title: '密钥和证书工具',
-      content: '此功能可以解析证书的颁发者、有效期、算法等信息，也可以生成密钥对并上传到指定服务器的指定目录',
-      imagePath: 'assets/keygen.png',
-    ),
-    HelpItem(
       title: '关于 & 反馈',
       content: '''
-ConnSSH 版本 1.2.2
+ConnSSH 版本 1.2.3
+
+新年快乐~
 
 此版本更新内容：
 
 新增功能：
-• 快捷栏支持自定义
-• 支持数据备份/还原
+• 服务器页面支持分组
+• SFTP文件下载支持sudo执行
 
 问题改进：
-• 修复了服务器数据面板不兼容多硬盘服务器的问题
-• 完整支持了华为设备的文件下载保存功能
-• 修复Android10以下设备无法保存文件的问题
-• 改进了部分页面设计
+• 修复部分页面边框过细的问题
+• 修复 #23 帮助界面异常切换的问题
+
 
 如有问题或建议，请发送邮件至：
 samuioto@outlook.com
@@ -93,7 +84,10 @@ samuioto@outlook.com
   void initState() {
     super.initState();
     _pageController = PageController(initialPage: 0);
+    _startTimer();
+  }
 
+  void _startTimer() {
     _timer = Timer.periodic(const Duration(seconds: 10), (timer) {
       if (_currentPage < helpItems.length - 1) {
         _currentPage++;
@@ -111,6 +105,11 @@ samuioto@outlook.com
     });
   }
 
+  void _resetTimer() {
+    _timer.cancel();
+    _startTimer();
+  }
+
   @override
   void dispose() {
     _timer.cancel();
@@ -123,9 +122,6 @@ samuioto@outlook.com
     return Scaffold(
       appBar: AppBar(
         title: const Text('帮助'),
-        //backgroundColor: Colors.transparent,
-        //elevation: 0,
-        //foregroundColor: Theme.of(context).colorScheme.onSurface,
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -156,6 +152,8 @@ samuioto@outlook.com
                   setState(() {
                     _currentPage = index;
                   });
+                  // 手动切换时重置计时器
+                  _resetTimer();
                 },
                 itemBuilder: (context, index) {
                   final item = helpItems[index];
@@ -200,6 +198,8 @@ samuioto@outlook.com
                             duration: const Duration(milliseconds: 500),
                             curve: Curves.easeInOut,
                           );
+                          // 手动切换时重置计时器
+                          _resetTimer();
                         }
                       : null,
                 ),
@@ -217,6 +217,8 @@ samuioto@outlook.com
                             duration: const Duration(milliseconds: 500),
                             curve: Curves.easeInOut,
                           );
+                          // 手动切换时重置计时器
+                          _resetTimer();
                         }
                       : null,
                 ),
