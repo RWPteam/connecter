@@ -7,7 +7,7 @@ A lightweight & cross-platform SSH/SFTP client built with Flutter.
 - 完整 SFTP：批量文件操作，支持自定义默认访问目录
 - 支持telnet：自动登录、多编码支持
 - 响应式布局：多尺寸设备自适应
-- 跨平台：Android / Windows / iOS / MacOS / HarmonyOS
+- 跨平台：Android / Windows / HarmonyOS
 - 支持私钥 / 密码 认证
 
 ### 截图
@@ -18,9 +18,8 @@ A lightweight & cross-platform SSH/SFTP client built with Flutter.
 ### 下载
 | 平台 | 下载 | 备注 |
 |------|------|------|
-| Android | [APK](https://github.com/RWPteam/ConnSSH/releases/download/1.2.2/ConnSSH_1.2.2.apk) | arm64 |
-| Windows | [exe](https://github.com/RWPteam/ConnSSH/releases/download/1.2.2/ConnSSH.1.2.2.Installer.exe) | 仅支持64位设备 |
-| OHOS | [app](https://github.com/RWPteam/ConnSSH/releases/download/1.2.2/ConnSSH_1.2.2.app.zip) | 华为手机、平板用户需要从AppGallery下载 |
+| Android | [APK](https://github.com/RWPteam/ConnSSH/releases/download/1.2.3/ConnSSH_1.2.3.apk) | arm64 |
+| Windows | [exe](https://github.com/RWPteam/ConnSSH/releases/download/1.2.3/ConnSSH.1.2.3.Installer.exe) | 仅支持64位设备 |
 | OHOS | [AppGallery](https://appgallery.huawei.com/app/detail?id=com.samuioto.connecter&channelId=SHARE&source=appshare) | 已上架至华为应用市场，欢迎体验
 
 
