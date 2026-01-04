@@ -1,4 +1,5 @@
 // global_settings_page.dart
+import 'dart:async';
 import 'dart:io';
 
 import 'package:file_picker_ohos/file_picker_ohos.dart';
@@ -55,131 +56,156 @@ class _GlobalSettingsPageState extends State<GlobalSettingsPage> {
     bool passwordObscure = true;
     bool confirmPasswordObscure = true;
 
+    // 保存主页面的 context
+    final BuildContext pageContext = context;
+
     showDialog(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setState) {
-          return AlertDialog(
-            title: const Text('备份数据'),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: passwordController,
-                    obscureText: passwordObscure,
-                    decoration: InputDecoration(
-                      labelText: '请设置密码',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12.0),
-                      ),
-                      suffixIcon: IconButton(
-                        icon: Icon(passwordObscure
-                            ? Icons.visibility
-                            : Icons.visibility_off),
-                        onPressed: () =>
-                            setState(() => passwordObscure = !passwordObscure),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: confirmPasswordController,
-                    obscureText: confirmPasswordObscure,
-                    decoration: InputDecoration(
-                      labelText: '确认密码',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12.0),
-                      ),
-                      suffixIcon: IconButton(
-                        icon: Icon(confirmPasswordObscure
-                            ? Icons.visibility
-                            : Icons.visibility_off),
-                        onPressed: () => setState(() =>
-                            confirmPasswordObscure = !confirmPasswordObscure),
+      context: pageContext,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('备份数据'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: passwordController,
+                      obscureText: passwordObscure,
+                      decoration: InputDecoration(
+                        labelText: '请设置密码',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12.0),
+                        ),
+                        suffixIcon: IconButton(
+                          icon: Icon(passwordObscure
+                              ? Icons.visibility
+                              : Icons.visibility_off),
+                          onPressed: () => setState(
+                              () => passwordObscure = !passwordObscure),
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  if (Platform.isAndroid)
-                    const Text(
-                      '备份文件将保存在应用私有目录中，您可以通过文件管理器访问。',
-                      style: TextStyle(fontSize: 12),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: confirmPasswordController,
+                      obscureText: confirmPasswordObscure,
+                      decoration: InputDecoration(
+                        labelText: '确认密码',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12.0),
+                        ),
+                        suffixIcon: IconButton(
+                          icon: Icon(confirmPasswordObscure
+                              ? Icons.visibility
+                              : Icons.visibility_off),
+                          onPressed: () => setState(() =>
+                              confirmPasswordObscure = !confirmPasswordObscure),
+                        ),
+                      ),
                     ),
-                ],
+                    const SizedBox(height: 8),
+                    if (Platform.isAndroid)
+                      const Text(
+                        '备份文件将保存在应用私有目录中，您可以通过文件管理器访问。',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                  ],
+                ),
               ),
-            ),
-            actions: [
-              OutlinedButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('取消'),
-              ),
-              OutlinedButton(
-                onPressed: () async {
-                  if (passwordController.text.isEmpty) {
-                    ScaffoldMessenger.of(context)
-                        .showSnackBar(const SnackBar(content: Text('请输入密码')));
-                    return;
-                  }
-                  if (passwordController.text !=
-                      confirmPasswordController.text) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('两次输入的密码不一致')));
-                    return;
-                  }
-
-                  final NavigatorState nav = Navigator.of(context);
-                  nav.pop();
-
-                  // 显示加载对话框
-                  showDialog(
-                    context: context,
-                    barrierDismissible: false,
-                    builder: (context) => const AlertDialog(
-                      backgroundColor: Colors.transparent,
-                      content: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          CircularProgressIndicator(),
-                          SizedBox(height: 16),
-                          Text('正在备份数据...'),
-                        ],
-                      ),
-                    ),
-                  );
-
-                  try {
-                    // 执行备份
-                    final filePath = await _backupService
-                        .backupData(passwordController.text);
-
-                    // 关闭加载对话框
-                    if (Navigator.of(context, rootNavigator: true).canPop()) {
-                      Navigator.of(context, rootNavigator: true).pop();
+              actions: [
+                OutlinedButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('取消'),
+                ),
+                OutlinedButton(
+                  onPressed: () async {
+                    if (passwordController.text.isEmpty) {
+                      ScaffoldMessenger.of(pageContext)
+                          .showSnackBar(const SnackBar(content: Text('请输入密码')));
+                      return;
+                    }
+                    if (passwordController.text !=
+                        confirmPasswordController.text) {
+                      ScaffoldMessenger.of(pageContext).showSnackBar(
+                          const SnackBar(content: Text('两次输入的密码不一致')));
+                      return;
                     }
 
-                    // 显示结果
-                    _showResultDialog('备份成功', '备份文件已保存到:\n$filePath');
-                  } catch (e) {
-                    // 关闭加载对话框
-                    if (Navigator.of(context, rootNavigator: true).canPop()) {
-                      Navigator.of(context, rootNavigator: true).pop();
+                    Navigator.of(context).pop();
+
+                    final completer = Completer<void>();
+
+                    final loadingDialogFuture = showDialog(
+                      context: pageContext,
+                      barrierDismissible: false,
+                      builder: (context) => const AlertDialog(
+                        backgroundColor: Colors.transparent,
+                        content: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            CircularProgressIndicator(),
+                            SizedBox(height: 16),
+                            Text('正在备份数据...'),
+                          ],
+                        ),
+                      ),
+                    );
+
+                    Future<void> backupOperation() async {
+                      try {
+                        final filePath = await _backupService
+                            .backupData(passwordController.text);
+
+                        if (!mounted) return;
+
+                        completer.complete();
+
+                        await Future.delayed(const Duration(milliseconds: 100));
+
+                        if (Navigator.of(pageContext, rootNavigator: true)
+                            .canPop()) {
+                          Navigator.of(pageContext, rootNavigator: true).pop();
+                        }
+
+                        await loadingDialogFuture;
+
+                        _showResultDialog(
+                            pageContext, '备份成功', '备份文件已保存到:\n$filePath');
+                      } catch (e) {
+                        if (!mounted) return;
+
+                        completer.completeError(e);
+
+                        await Future.delayed(const Duration(milliseconds: 100));
+
+                        if (Navigator.of(pageContext, rootNavigator: true)
+                            .canPop()) {
+                          Navigator.of(pageContext, rootNavigator: true).pop();
+                        }
+
+                        await loadingDialogFuture;
+
+                        _showResultDialog(
+                            pageContext, '备份失败', '错误: $e\n请检查存储空间');
+                      }
                     }
 
-                    _showResultDialog('备份失败', '错误: $e\n请检查存储空间');
-                  }
-                },
-                child: const Text('备份'),
-              ),
-            ],
-          );
-        },
-      ),
+                    backupOperation();
+                  },
+                  child: const Text('备份'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 
-  void _showResultDialog(String title, String message) {
+  void _showResultDialog(BuildContext context, String title, String message) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(

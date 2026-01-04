@@ -22,14 +22,88 @@ class _SSHSettingsPageState extends State<SSHSettingsPage> {
   double _fontSize = 12.0;
   String _termTheme = 'dark';
   String _termType = 'xterm-256color';
+  String _defaultFonts = 'maple';
+
+  final Map<String, String> _fontMap = {
+    'maple': 'maple（默认）',
+    'droidsan': 'Droid Sans Mono',
+    'ohossans': 'HarmonyOS Sans',
+    'jetbrain': 'Jetbrain Mono',
+    'roboto': 'Roboto',
+    'sauce': 'Sauce Code Pro',
+  };
+
+  final List<String> _fontList = [
+    'maple',
+    'droidsans',
+    'ohossans',
+    'jetbrain',
+    'roboto',
+    'sauce'
+  ];
 
   final Map<String, String> _termThemeMap = {
     'dark': '深色',
-    'black': '黑色',
+    'black': '高对比度',
     'light': '浅色',
+    'xshell': 'XShell',
+    'dracula': 'Dracula Dark',
+    'druvbox': 'Druvbox Dark',
   };
 
-  final List<String> _termThemes = ['dark', 'black', 'light'];
+  final Map<String, Map<String, Color>> _themeColors = {
+    'dark': {
+      'bg': Color(0XFF1E1E1E),
+      'fg': Color(0XFFCCCCCC),
+      'red': Color(0XFFCD3131),
+      'green': Color(0XFF0DBC79),
+      'blue': Color(0XFF2472C8),
+    },
+    'black': {
+      'bg': Color(0XFF000000),
+      'fg': Color(0XFFFFFFFF),
+      'red': Color(0XFFCD3131),
+      'green': Color(0XFF0DBC79),
+      'blue': Color(0XFF2472C8),
+    },
+    'light': {
+      'bg': Color(0XFFF8F4E8),
+      'fg': Color(0XFF222222),
+      'red': Color(0XFFAA2222),
+      'green': Color(0XFF008800),
+      'blue': Color(0XFF0044BB),
+    },
+    'xshell': {
+      'bg': Color(0XFF000000),
+      'fg': Color(0XFFF0F0F0),
+      'red': Color(0XFFCD0000),
+      'green': Color(0XFF00CD00),
+      'blue': Color(0XFF0000EE),
+    },
+    'dracula': {
+      'bg': Color(0XFF282A36),
+      'fg': Color(0XFFF8F8F2),
+      'red': Color(0XFFFF5555),
+      'green': Color(0XFF50FA7B),
+      'blue': Color(0XFF8BE9FD),
+    },
+    'druvbox': {
+      'bg': Color(0XFF282828),
+      'fg': Color(0XFFEBDBB2),
+      'red': Color(0XFFCC241D),
+      'green': Color(0XFF98971A),
+      'blue': Color(0XFF458588),
+    },
+  };
+
+  final List<String> _termThemes = [
+    'dark',
+    'black',
+    'light',
+    'xshell',
+    'dracula',
+    'druvbox'
+  ];
   final List<String> _termTypes = [
     'xterm-256color',
     'xterm',
@@ -50,6 +124,7 @@ class _SSHSettingsPageState extends State<SSHSettingsPage> {
       _fontSize = settings.defaultFontSize;
       _termTheme = settings.defaultTermTheme;
       _termType = settings.termType;
+      _defaultFonts = settings.defaultFonts;
       _isLoading = false;
     });
   }
@@ -65,19 +140,11 @@ class _SSHSettingsPageState extends State<SSHSettingsPage> {
         termType: _termType,
         defaultPageTheme: currentSettings.defaultPageTheme,
         defaultThemeMode: currentSettings.defaultThemeMode,
+        defaultFonts: _defaultFonts,
       );
 
       await widget.settingsService.saveSettings(newSettings);
       widget.onSettingsChanged();
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('设置已保存'),
-            duration: Duration(seconds: 2),
-          ),
-        );
-      }
     } catch (e) {
       if (mounted) {
         showDialog(
@@ -152,6 +219,69 @@ class _SSHSettingsPageState extends State<SSHSettingsPage> {
     );
   }
 
+  void _showFontFamilyDialog() {
+    String currentValue = _defaultFonts;
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('选择字体'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: _fontList
+              .map((font) => RadioListTile<String>(
+                    title: Row(
+                      children: [
+                        Expanded(
+                          child: Text(_fontMap[font] ?? font),
+                        ),
+                        // 字体示例
+                        Container(
+                          margin: EdgeInsets.only(left: 8),
+                          padding:
+                              EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                              color: Colors.grey.shade300,
+                              width: 1,
+                            ),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            'Aa',
+                            style: TextStyle(
+                              fontFamily: font == 'maple' ? null : font,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    value: font,
+                    groupValue: currentValue,
+                    onChanged: (value) {
+                      if (value != null) {
+                        Navigator.of(context).pop();
+                        setState(() {
+                          _defaultFonts = value;
+                        });
+                        _saveSettings();
+                      }
+                    },
+                  ))
+              .toList(),
+        ),
+        actions: [
+          OutlinedButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('取消'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showTermThemeDialog() {
     String currentValue = _termTheme;
     showDialog(
@@ -162,7 +292,15 @@ class _SSHSettingsPageState extends State<SSHSettingsPage> {
           mainAxisSize: MainAxisSize.min,
           children: _termThemes
               .map((theme) => RadioListTile<String>(
-                    title: Text(_termThemeMap[theme] ?? theme),
+                    title: Row(
+                      children: [
+                        Expanded(
+                          child: Text(_termThemeMap[theme] ?? theme),
+                        ),
+                        // 配色示例
+                        _buildThemePreview(theme),
+                      ],
+                    ),
                     value: theme,
                     groupValue: currentValue,
                     onChanged: (value) {
@@ -183,6 +321,45 @@ class _SSHSettingsPageState extends State<SSHSettingsPage> {
             child: const Text('取消'),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildThemePreview(String themeKey) {
+    final colors = _themeColors[themeKey];
+    if (colors == null) {
+      return Container();
+    }
+
+    return Container(
+      margin: EdgeInsets.only(left: 8),
+      child: Row(
+        children: [
+          _buildColorSquare(colors['bg']!, Colors.white),
+          SizedBox(width: 2),
+          _buildColorSquare(colors['fg']!, Colors.black),
+          SizedBox(width: 2),
+          _buildColorSquare(colors['red']!, Colors.white),
+          SizedBox(width: 2),
+          _buildColorSquare(colors['green']!, Colors.white),
+          SizedBox(width: 2),
+          _buildColorSquare(colors['blue']!, Colors.white),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildColorSquare(Color color, Color textColor) {
+    return Container(
+      width: 20,
+      height: 20,
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(3),
+        border: Border.all(
+          color: Colors.grey.shade400,
+          width: 0.5,
+        ),
       ),
     );
   }
@@ -311,6 +488,12 @@ class _SSHSettingsPageState extends State<SSHSettingsPage> {
               child: Column(
                 children: [
                   const SizedBox(height: 16),
+                  _buildSettingTile(
+                    title: '字体',
+                    subtitle: _fontMap[_defaultFonts] ?? _defaultFonts,
+                    onTap: _showFontFamilyDialog,
+                    icon: Icons.font_download,
+                  ),
                   _buildSettingTile(
                     title: '字体大小',
                     subtitle: '${_fontSize.toInt()}px',

@@ -12,7 +12,6 @@ import 'package:file_selector/file_selector.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:permission_handler/permission_handler.dart';
 import '../models/connection_model.dart';
 import '../models/credential_model.dart';
 import '../services/setting_service.dart';
@@ -1453,51 +1452,6 @@ class _SftpPageState extends State<SftpPage> {
         ],
       ),
     );
-  }
-
-  Future<bool> _requestStoragePermission() async {
-    if (!Platform.isAndroid) return true;
-
-    try {
-      var status = await Permission.storage.status;
-
-      if (status.isGranted) {
-        return true;
-      } else if (status.isDenied) {
-        status = await Permission.storage.request();
-        return status.isGranted;
-      } else if (status.isPermanentlyDenied) {
-        if (mounted) {
-          final result = await showDialog<bool>(
-            context: context,
-            builder: (context) => AlertDialog(
-              title: const Text('需要存储权限'),
-              content: const Text('下载文件需要存储权限。请在应用设置中授予权限。'),
-              actions: [
-                OutlinedButton(
-                  onPressed: () => Navigator.of(context).pop(false),
-                  child: const Text('取消'),
-                ),
-                OutlinedButton(
-                  onPressed: () => Navigator.of(context).pop(true),
-                  child: const Text('去设置'),
-                ),
-              ],
-            ),
-          );
-
-          if (result == true) {
-            await openAppSettings();
-          }
-        }
-        return false;
-      }
-
-      return false;
-    } catch (e) {
-      debugPrint('请求存储权限失败: $e');
-      return false;
-    }
   }
 
   Future<void> _downloadSingleFile(String remotePath, String localFilePath,

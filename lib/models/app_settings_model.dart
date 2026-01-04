@@ -9,6 +9,7 @@ class AppSettings {
   final String defaultPageTheme;
   final String defaultThemeMode;
   final List<int> toolbarLayout;
+  final String defaultFonts; // 新增的字体属性
 
   const AppSettings({
     this.defaultSftpPath,
@@ -37,6 +38,7 @@ class AppSettings {
       15,
       16
     ],
+    this.defaultFonts = 'maple', // 默认字体
   });
 
   AppSettings copyWith({
@@ -49,6 +51,7 @@ class AppSettings {
     String? defaultPageTheme,
     String? defaultThemeMode,
     List<int>? toolbarLayout,
+    String? defaultFonts,
   }) {
     return AppSettings(
       defaultSftpPath: defaultSftpPath ?? this.defaultSftpPath,
@@ -60,6 +63,7 @@ class AppSettings {
       defaultPageTheme: defaultPageTheme ?? this.defaultPageTheme,
       defaultThemeMode: defaultThemeMode ?? this.defaultThemeMode,
       toolbarLayout: toolbarLayout ?? this.toolbarLayout,
+      defaultFonts: defaultFonts ?? this.defaultFonts,
     );
   }
 
@@ -74,6 +78,7 @@ class AppSettings {
       'defaultPageTheme': defaultPageTheme,
       'defaultThemeMode': defaultThemeMode,
       'toolbarLayout': toolbarLayout,
+      'defaultFonts': defaultFonts,
     };
   }
 
@@ -89,6 +94,7 @@ class AppSettings {
       defaultThemeMode: map['defaultThemeMode'] ?? 'system',
       toolbarLayout: List<int>.from(map['toolbarLayout'] ??
           [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]),
+      defaultFonts: map['defaultFonts'] ?? 'maple',
     );
   }
 
@@ -103,6 +109,7 @@ class AppSettings {
       defaultPageTheme: 'default',
       defaultThemeMode: 'system',
       toolbarLayout: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
+      defaultFonts: 'maple',
     );
   }
 }
